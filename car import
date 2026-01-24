@@ -1,0 +1,68 @@
+import streamlit as st
+import requests
+import xml.etree.ElementTree as ET
+
+VAT_UK = 20
+DUTY = 10
+VAT_CY = 19
+MOT = 60
+PLATES = 40
+
+TOM_BY_WEIGHT = [
+    (0, 2000, 180),
+    (2001, 2300, 220),
+    (2301, 2500, 260),
+    (2501, 2700, 300),
+    (2701, 2900, 340),
+    (2901, 3100, 380),
+    (3101, 3300, 450),
+    (3301, 3500, 550),
+]
+
+def calculate_tom(weight):
+    for a, b, fee in TOM_BY_WEIGHT:
+        if a <= weight <= b:
+            return fee
+    return 0
+
+@st.cache_data(ttl=3600)
+def get_gbp_rate():
+    try:
+        xml = requests.get(
+            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+            timeout=5
+        ).content
+        root = ET.fromstring(xml)
+        ns = {"e": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
+        gbp = float(root.find(".//e:Cube[@currency='GBP']", ns).attrib["rate"])
+        date = root.find(".//e:Cube[@time]", ns).attrib["time"]
+        return round(1 / gbp, 4), date
+    except:
+        return 1.15, "fallback"
+
+st.set_page_config(page_title="UK Car Import", layout="centered")
+
+st.title("🚗 UK Car Import Calculator")
+
+rate, rate_date = get_gbp_rate()
+st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
+
+purchase = st.number_input("Purchase price (£)", step=100.0)
+transport = st.number_input("Transport (£)", step=50.0)
+insurance = st.number_input("Insurance (€)", step=10.0)
+weight = st.number_input("Vehicle weight (kg)", step=50)
+
+if st.button("Calculate total", use_container_width=True):
+    tom = calculate_tom(weight)
+
+    vat_uk = purchase * VAT_UK / 100
+    purchase_eur = (purchase + vat_uk) * rate
+    transport_eur = transport * rate
+
+    cif = purchase_eur + transport_eur + insurance
+    duty = cif * DUTY / 100
+    vat = (cif + duty) * VAT_CY / 100
+
+    total = cif + duty + vat + MOT + PLATES + tom
+
+    st.success(f"Final total: €{total:,.2f}")
