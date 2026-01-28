@@ -2,10 +2,6 @@ import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
 
-# ==========================
-# CONSTANTS (simple & fixed)
-# ==========================
-
 VAT_UK = 20
 DUTY = 10
 VAT_CY = 19
@@ -23,16 +19,11 @@ TOM_BY_WEIGHT = [
     (3301, 3500, 550),
 ]
 
-# ==========================
-# HELPERS
-# ==========================
-
 def calculate_tom(weight):
     for a, b, fee in TOM_BY_WEIGHT:
         if a <= weight <= b:
             return fee
     return 0
-
 
 @st.cache_data(ttl=3600)
 def get_gbp_rate():
@@ -49,31 +40,19 @@ def get_gbp_rate():
     except:
         return 1.15, "fallback"
 
+st.set_page_config(page_title="UK Car Import", layout="centered")
 
-# ==========================
-# UI (MOBILE FIRST)
-# ==========================
-
-st.set_page_config(
-    page_title="UK Import Calculator",
-    layout="centered"
-)
-
-st.title("🚗 UK Car Import")
+st.title("🚗 UK Car Import Calculator")
 
 rate, rate_date = get_gbp_rate()
 st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
-
-st.markdown("### Enter details")
 
 purchase = st.number_input("Purchase price (£)", step=100.0)
 transport = st.number_input("Transport (£)", step=50.0)
 insurance = st.number_input("Insurance (€)", step=10.0)
 weight = st.number_input("Vehicle weight (kg)", step=50)
 
-st.markdown("---")
-
-if st.button("Calculate Total Cost", use_container_width=True):
+if st.button("Calculate total", use_container_width=True):
     tom = calculate_tom(weight)
 
     vat_uk = purchase * VAT_UK / 100
@@ -86,8 +65,4 @@ if st.button("Calculate Total Cost", use_container_width=True):
 
     total = cif + duty + vat + MOT + PLATES + tom
 
-    st.success(f"✅ Final Total: €{total:,.2f}")
-
-    st.metric("CIF", f"€{cif:,.2f}")
-    st.metric("Taxes", f"€{duty + vat:,.2f}")
-    st.metric("Cyprus fees", f"€{MOT + PLATES + tom:,.2f}")
+    st.success(f"Final total: €{total:,.2f}")
