@@ -46,7 +46,7 @@ def calculate_tom(weight):
     for a, b, fee in TOM_BY_WEIGHT:
         if a <= weight <= b:
             return float(fee)
-    return 0.0  # >3500kg manual
+    return 0.0
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -75,120 +75,73 @@ def get_gbp_to_eur_rate():
     except:
         return 1.15, "fallback"
 
-# =============================
-# LOAD CONFIG
-# =============================
 cfg = load_config()
 rate, rate_date = get_gbp_to_eur_rate()
 
 # =============================
-# UI
+# SIDEBAR ADMIN (FIXED)
+# =============================
+st.sidebar.title("⚙️ Admin")
+
+admin_pwd = st.sidebar.text_input("Admin password", type="password")
+
+if admin_pwd == ADMIN_PASSWORD:
+    st.sidebar.success("Admin unlocked")
+
+    cfg["vat_uk_percent"] = st.sidebar.number_input("UK VAT (%)", value=cfg["vat_uk_percent"])
+    cfg["duty_percent"] = st.sidebar.number_input("Duty (%)", value=cfg["duty_percent"])
+    cfg["vat_cy_percent"] = st.sidebar.number_input("Cyprus VAT (%)", value=cfg["vat_cy_percent"])
+    cfg["mot"] = st.sidebar.number_input("MOT (€)", value=cfg["mot"])
+    cfg["plates"] = st.sidebar.number_input("Plates (€)", value=cfg["plates"])
+
+    if st.sidebar.button("Save settings"):
+        save_config(cfg)
+        st.sidebar.success("Saved — refresh app")
+
+# =============================
+# MAIN UI
 # =============================
 st.title("🚗 Car Import Calculator")
 
-tab_uk, tab_jp, tab_admin = st.tabs(
-    ["🇬🇧 UK Import", "🇯🇵 Japan Import", "⚙️ Admin"]
-)
+tab_uk, tab_jp = st.tabs(["🇬🇧 UK Import", "🇯🇵 Japan Import"])
 
 # =============================
-# 🇬🇧 UK IMPORT
+# 🇬🇧 UK
 # =============================
 with tab_uk:
-    st.header("UK Car Import")
-    st.caption(f"ECB official GBP → EUR rate: **{rate}** (published {rate_date})")
+    st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
 
-    purchase_gbp = st.number_input("Purchase price (£)", min_value=0.0, step=500.0)
-    transport_gbp = st.number_input("Transport (£)", min_value=0.0, step=100.0)
-    insurance_eur = st.number_input("Insurance (€)", min_value=0.0, step=50.0)
-    weight = st.number_input("Vehicle weight (kg)", min_value=0, step=50)
+    purchase = st.number_input("Purchase price (£)", 0.0)
+    transport = st.number_input("Transport (£)", 0.0)
+    insurance = st.number_input("Insurance (€)", 0.0)
+    weight = st.number_input("Vehicle weight (kg)", 0)
 
-    if st.button("Calculate UK total", use_container_width=True):
-        vat_uk = purchase_gbp * cfg["vat_uk_percent"] / 100
-        purchase_eur = (purchase_gbp + vat_uk) * rate
-        transport_eur = transport_gbp * rate
+    if st.button("Calculate UK Import"):
+        vat_uk = purchase * cfg["vat_uk_percent"] / 100
+        purchase_eur = (purchase + vat_uk) * rate
+        transport_eur = transport * rate
 
-        cif = purchase_eur + transport_eur + insurance_eur
+        cif = purchase_eur + transport_eur + insurance
         duty = cif * cfg["duty_percent"] / 100
-        vat_cy = (cif + duty) * cfg["vat_cy_percent"] / 100
+        vat = (cif + duty) * cfg["vat_cy_percent"] / 100
         tom = calculate_tom(weight)
 
-        total_import = cif + duty + vat_cy
-        total_cyprus = cfg["mot"] + cfg["plates"] + tom
-        final_total = total_import + total_cyprus
-
-        st.success(f"Final total: €{final_total:,.2f}")
-
-        st.write("### Breakdown")
-        st.write(f"UK VAT: €{vat_uk:,.2f}")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat_cy:,.2f}")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"TOM: €{tom:,.2f}")
+        total = cif + duty + vat + cfg["mot"] + cfg["plates"] + tom
+        st.success(f"Final total: €{total:,.2f}")
 
 # =============================
-# 🇯🇵 JAPAN IMPORT (CORRECT)
+# 🇯🇵 JAPAN
 # =============================
 with tab_jp:
-    st.header("Japan Car Import")
+    purchase = st.number_input("Purchase price (€)", 0.0)
+    shipping = st.number_input("Shipping (€)", 0.0)
+    weight = st.number_input("Vehicle weight (kg)", 0, key="jp")
 
-    purchase_eur = st.number_input("Purchase price (€)", min_value=0.0, step=500.0)
-    shipping_eur = st.number_input("Shipping (€)", min_value=0.0, step=100.0)
-    weight = st.number_input("Vehicle weight (kg)", min_value=0, step=50, key="jp_weight")
-
-    if st.button("Calculate Japan total", use_container_width=True):
+    if st.button("Calculate Japan Import"):
+        cif = purchase + shipping
+        duty = cif * cfg["duty_percent"] / 100
+        vat = (cif + duty) * cfg["vat_cy_percent"] / 100
         tom = calculate_tom(weight)
 
-        cif = purchase_eur + shipping_eur
-        duty = cif * cfg["duty_percent"] / 100
-        vat_cy = (cif + duty) * cfg["vat_cy_percent"] / 100
-
-        total_import = cif + duty + vat_cy
-        total_cyprus = cfg["mot"] + cfg["plates"] + tom
-        final_total = total_import + total_cyprus
-
-        st.success(f"Final total: €{final_total:,.2f}")
-
-        st.write("### Breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat_cy:,.2f}")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"TOM: €{tom:,.2f}")
-
-# =============================
-# ⚙️ ADMIN (PERSISTENT)
-# =============================
-with tab_admin:
-    st.header("Admin Settings")
-
-    pwd = st.text_input("Password", type="password")
-
-    if pwd == ADMIN_PASSWORD:
-        st.success("Access granted")
-
-        cfg_edit = dict(cfg)
-
-        cfg_edit["vat_uk_percent"] = st.number_input(
-            "UK VAT (%)", value=cfg_edit["vat_uk_percent"], step=0.5
-        )
-        cfg_edit["duty_percent"] = st.number_input(
-            "Duty (%)", value=cfg_edit["duty_percent"], step=0.5
-        )
-        cfg_edit["vat_cy_percent"] = st.number_input(
-            "Cyprus VAT (%)", value=cfg_edit["vat_cy_percent"], step=0.5
-        )
-        cfg_edit["mot"] = st.number_input(
-            "MOT (€)", value=cfg_edit["mot"], step=1.0
-        )
-        cfg_edit["plates"] = st.number_input(
-            "Plates (€)", value=cfg_edit["plates"], step=1.0
-        )
-
-        if st.button("Save settings", use_container_width=True):
-            save_config(cfg_edit)
-            st.success("Settings saved. Refresh to apply.")
-    elif pwd:
-        st.error("Wrong password")
+        total = cif + duty + vat + cfg["mot"] + cfg["plates"] + tom
+        st.success(f"Final total: €{total:,.2f}")
