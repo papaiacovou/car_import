@@ -17,7 +17,8 @@ DEFAULT_CONFIG = {
     "mot": 60.0,
     "plates": 40.0,
     "road_tax": 0.0,
-    "registration": 0.0
+    "registration": 0.0,
+    "certifying_officer": 0.0
 }
 
 # ---------------------------
@@ -93,13 +94,22 @@ tabs = st.tabs(["🇬🇧 UK", "🇯🇵 Japan", "⚙️ Admin"])
 def extra_fees_ui(prefix):
     with st.expander("Extra fees (optional)"):
         reg_extra = st.number_input("Extra registration (€)", 0.0, key=f"{prefix}_reg")
+        cert_extra = st.number_input("Extra certifying officer (€)", 0.0, key=f"{prefix}_cert")
         customs = st.number_input("Customs agent (€)", 0.0, key=f"{prefix}_cust")
         road_extra = st.number_input("Extra road tax (€)", 0.0, key=f"{prefix}_road")
         insurance = st.number_input("Insurance CY (€)", 0.0, key=f"{prefix}_ins")
         port = st.number_input("Port charges (€)", 0.0, key=f"{prefix}_port")
         co2 = st.number_input("CO2 / inspection (€)", 0.0, key=f"{prefix}_co2")
 
-    return reg_extra + customs + road_extra + insurance + port + co2
+    return (
+        reg_extra
+        + cert_extra
+        + customs
+        + road_extra
+        + insurance
+        + port
+        + co2
+    )
 
 # ---------------------------
 # UK
@@ -121,11 +131,13 @@ with tabs[0]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         tom = calculate_tom_from_weight(weight)
+
         cy_fees = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
             + cfg["registration"]
+            + cfg["certifying_officer"]
             + tom
         )
 
@@ -148,11 +160,13 @@ with tabs[1]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         tom = calculate_tom_from_weight(weight)
+
         cy_fees = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
             + cfg["registration"]
+            + cfg["certifying_officer"]
             + tom
         )
 
@@ -177,6 +191,7 @@ with tabs[2]:
         cfg_edit["plates"] = st.number_input("Plates (€)", value=cfg_edit["plates"])
         cfg_edit["road_tax"] = st.number_input("Road Tax (€)", value=cfg_edit["road_tax"])
         cfg_edit["registration"] = st.number_input("Registration (€)", value=cfg_edit["registration"])
+        cfg_edit["certifying_officer"] = st.number_input("Certifying Officer (€)", value=cfg_edit["certifying_officer"])
 
         if st.button("Save settings"):
             save_cfg(cfg_edit)
