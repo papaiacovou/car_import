@@ -16,14 +16,21 @@ DEFAULT_CONFIG = {
     "vat_cy_percent": 19.0,
     "mot": 60.0,
     "plates": 40.0,
-    "road_tax": 0.0,
-    "registration": 0.0,
-    "certifying_officer": 0.0
+    "road_tax": 120.0,
+    "registration": 150.0,
+    "certifying_officer": 80.0,
 }
 
 # ---------------------------
 # Helpers
 # ---------------------------
+def to_float(v):
+    try:
+        return float(str(v).replace(",", "."))
+    except:
+        return 0.0
+
+
 def load_cfg():
     if not os.path.exists(CONFIG_FILE):
         save_cfg(DEFAULT_CONFIG)
@@ -35,9 +42,11 @@ def load_cfg():
         save_cfg(DEFAULT_CONFIG)
         return dict(DEFAULT_CONFIG)
 
+
 def save_cfg(cfg):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
+
 
 # ---------------------------
 # TOM by weight
@@ -53,29 +62,32 @@ TOM_BY_WEIGHT = [
     (3301, 3500, 550),
 ]
 
-def calculate_tom_from_weight(weight):
+def calculate_tom(weight):
     for a, b, fee in TOM_BY_WEIGHT:
         if a <= weight <= b:
             return float(fee)
     return 0.0
 
+
 # ---------------------------
-# FX (ECB)
+# ECB FX
 # ---------------------------
 @st.cache_data(ttl=3600)
-def get_gbp_to_eur_rate():
+def get_gbp_rate():
     try:
         r = requests.get(
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
-            timeout=8
+            timeout=10
         )
+        r.raise_for_status()
         tree = ET.fromstring(r.content)
-        ns = {"d": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
-        date = tree.find(".//d:Cube[@time]", ns).attrib["time"]
-        gbp = float(tree.find(".//d:Cube[@currency='GBP']", ns).attrib["rate"])
+        ns = {"def": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
+        date = tree.find(".//def:Cube[@time]", ns).attrib["time"]
+        gbp = float(tree.find(".//def:Cube[@currency='GBP']", ns).attrib["rate"])
         return round(1 / gbp, 4), date
     except:
-        return 1.15, "fallback"
+        return 1.1534, "fallback"
+
 
 # ---------------------------
 # UI
@@ -84,55 +96,48 @@ st.set_page_config(page_title="Car Import Calculator", layout="centered")
 st.title("🚗 Car Import Calculator")
 
 cfg = load_cfg()
-rate, rate_date = get_gbp_to_eur_rate()
+rate, rate_date = get_gbp_rate()
 
 tabs = st.tabs(["🇬🇧 UK", "🇯🇵 Japan", "⚙️ Admin"])
+
 
 # ---------------------------
 # Extra fees
 # ---------------------------
-def extra_fees_ui(prefix):
+def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
-        reg_extra = st.number_input("Extra registration (€)", 0.0, key=f"{prefix}_reg")
-        cert_extra = st.number_input("Extra certifying officer (€)", 0.0, key=f"{prefix}_cert")
-        customs = st.number_input("Customs agent (€)", 0.0, key=f"{prefix}_cust")
-        road_extra = st.number_input("Extra road tax (€)", 0.0, key=f"{prefix}_road")
-        insurance = st.number_input("Insurance CY (€)", 0.0, key=f"{prefix}_ins")
-        port = st.number_input("Port charges (€)", 0.0, key=f"{prefix}_port")
-        co2 = st.number_input("CO2 / inspection (€)", 0.0, key=f"{prefix}_co2")
+        reg_fee = st.number_input("Registration fee (€)", 0.0, step=10.0, key=f"{prefix}_reg")
+        agent = st.number_input("Customs agent (€)", 0.0, step=10.0, key=f"{prefix}_agent")
+        insurance = st.number_input("Insurance CY (€)", 0.0, step=10.0, key=f"{prefix}_ins")
+        port = st.number_input("Port charges (€)", 0.0, step=10.0, key=f"{prefix}_port")
+        co2 = st.number_input("CO₂ / inspection (€)", 0.0, step=10.0, key=f"{prefix}_co2")
+    return reg_fee + agent + insurance + port + co2
 
-    return (
-        reg_extra
-        + cert_extra
-        + customs
-        + road_extra
-        + insurance
-        + port
-        + co2
-    )
 
 # ---------------------------
-# UK
+# UK TAB
 # ---------------------------
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
 
-    purchase = st.number_input("Purchase (GBP)", 0.0)
-    transport = st.number_input("Transport (GBP)", 0.0)
-    insurance = st.number_input("Insurance (€)", 0.0)
-    weight = st.number_input("Vehicle weight (kg)", 0)
+    purchase = st.number_input("Purchase (GBP)", 0.0, step=100.0)
+    transport = st.number_input("Transport (GBP)", 0.0, step=50.0)
+    insurance_eur = st.number_input("Insurance (EUR)", 0.0, step=10.0)
+    weight = st.number_input("Vehicle weight (kg)", 0, step=50)
 
-    extras = extra_fees_ui("uk")
+    extras = extra_fees("uk")
 
-    if st.button("Calculate UK"):
+    if st.button("Calculate UK", use_container_width=True):
         vat_uk = purchase * cfg["vat_uk_percent"] / 100
-        cif = (purchase + vat_uk) * rate + transport * rate + insurance
+        purchase_eur = (purchase + vat_uk) * rate
+        transport_eur = transport * rate
+
+        cif = purchase_eur + transport_eur + insurance_eur
         duty = cif * cfg["duty_percent"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        tom = calculate_tom_from_weight(weight)
-
-        cy_fees = (
+        tom = calculate_tom(weight)
+        cy_base = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
@@ -141,27 +146,45 @@ with tabs[0]:
             + tom
         )
 
-        total = cif + duty + vat + cy_fees + extras
+        total = cif + duty + vat + cy_base + extras
+
         st.success(f"Final total: €{total:,.2f}")
 
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"UK VAT (GBP): £{vat_uk:,.2f}")
+        st.write(f"Purchase EUR (with UK VAT): €{purchase_eur:,.2f}")
+        st.write(f"Transport EUR: €{transport_eur:,.2f}")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"TOM: €{tom:,.2f}")
+        st.write(f"Extra fees: €{extras:,.2f}")
+
+
 # ---------------------------
-# JAPAN
+# JAPAN TAB
 # ---------------------------
 with tabs[1]:
-    purchase = st.number_input("Purchase (€)", 0.0)
-    shipping = st.number_input("Shipping (€)", 0.0)
-    weight = st.number_input("Vehicle weight (kg)", 0, key="jp_w")
+    purchase = st.number_input("Purchase (EUR)", 0.0, step=500.0)
+    shipping = st.number_input("Shipping (EUR)", 0.0, step=100.0)
+    weight = st.number_input("Vehicle weight (kg)", 0, step=50, key="jp_w")
 
-    extras = extra_fees_ui("jp")
+    extras = extra_fees("jp")
 
-    if st.button("Calculate Japan"):
+    if st.button("Calculate Japan", use_container_width=True):
         cif = purchase + shipping
         duty = cif * cfg["duty_percent"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        tom = calculate_tom_from_weight(weight)
-
-        cy_fees = (
+        tom = calculate_tom(weight)
+        cy_base = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
@@ -170,31 +193,42 @@ with tabs[1]:
             + tom
         )
 
-        total = cif + duty + vat + cy_fees + extras
+        total = cif + duty + vat + cy_base + extras
+
         st.success(f"Final total: €{total:,.2f}")
 
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"TOM: €{tom:,.2f}")
+        st.write(f"Extra fees: €{extras:,.2f}")
+
+
 # ---------------------------
-# ADMIN
+# ADMIN TAB
 # ---------------------------
 with tabs[2]:
-    pwd = st.text_input("Password", type="password")
-
+    pwd = st.text_input("Admin password", type="password")
     if pwd == ADMIN_PASSWORD:
-        st.success("Admin access")
+        st.success("Access granted")
 
-        cfg_edit = dict(cfg)
-
-        cfg_edit["vat_uk_percent"] = st.number_input("UK VAT %", value=cfg_edit["vat_uk_percent"])
-        cfg_edit["duty_percent"] = st.number_input("Duty %", value=cfg_edit["duty_percent"])
-        cfg_edit["vat_cy_percent"] = st.number_input("Cyprus VAT %", value=cfg_edit["vat_cy_percent"])
-        cfg_edit["mot"] = st.number_input("MOT (€)", value=cfg_edit["mot"])
-        cfg_edit["plates"] = st.number_input("Plates (€)", value=cfg_edit["plates"])
-        cfg_edit["road_tax"] = st.number_input("Road Tax (€)", value=cfg_edit["road_tax"])
-        cfg_edit["registration"] = st.number_input("Registration (€)", value=cfg_edit["registration"])
-        cfg_edit["certifying_officer"] = st.number_input("Certifying Officer (€)", value=cfg_edit["certifying_officer"])
+        for k in DEFAULT_CONFIG:
+            cfg[k] = st.number_input(
+                k.replace("_", " ").title(),
+                value=float(cfg[k]),
+                step=1.0
+            )
 
         if st.button("Save settings"):
-            save_cfg(cfg_edit)
-            st.success("Saved – refresh page")
-    else:
-        st.info("Enter admin password")
+            save_cfg(cfg)
+            st.success("Saved — refresh page")
+    elif pwd:
+        st.error("Wrong password")
