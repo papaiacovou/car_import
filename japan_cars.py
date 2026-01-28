@@ -19,13 +19,13 @@ DEFAULT_CONFIG = {
     "road_tax": 120.0,
     "registration": 150.0,
     "certifying_officer": 80.0,
+    "sva_japan": 0.0,   # ✅ JAPAN ONLY
 }
 
 # ---------------------------
 # Helpers
 # ---------------------------
 def nz(v):
-    """None → 0.0"""
     return float(v) if v not in (None, "") else 0.0
 
 
@@ -47,7 +47,7 @@ def save_cfg(cfg):
 
 
 # ---------------------------
-# FX (ECB)
+# ECB FX
 # ---------------------------
 @st.cache_data(ttl=3600)
 def get_gbp_rate():
@@ -79,23 +79,17 @@ tabs = st.tabs(["🇬🇧 UK", "🇯🇵 Japan", "⚙️ Admin"])
 
 
 # ---------------------------
-# Extra fees
+# Extra fees (shared)
 # ---------------------------
 def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
-        reg_fee = st.number_input("Registration fee (€)", value=None, step=10.0, key=f"{prefix}_reg_fee")
+        reg_fee = st.number_input("Registration fee (€)", value=None, step=10.0, key=f"{prefix}_reg")
         agent = st.number_input("Customs agent (€)", value=None, step=10.0, key=f"{prefix}_agent")
-        insurance = st.number_input("Insurance CY (€)", value=None, step=10.0, key=f"{prefix}_ins_cy")
+        insurance = st.number_input("Insurance CY (€)", value=None, step=10.0, key=f"{prefix}_ins")
         port = st.number_input("Port charges (€)", value=None, step=10.0, key=f"{prefix}_port")
         co2 = st.number_input("CO₂ / inspection (€)", value=None, step=10.0, key=f"{prefix}_co2")
 
-    return (
-        nz(reg_fee)
-        + nz(agent)
-        + nz(insurance)
-        + nz(port)
-        + nz(co2)
-    )
+    return nz(reg_fee) + nz(agent) + nz(insurance) + nz(port) + nz(co2)
 
 
 # ---------------------------
@@ -104,10 +98,10 @@ def extra_fees(prefix):
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
 
-    purchase = st.number_input("Purchase (GBP)", value=None, step=100.0, key="uk_purchase")
-    transport = st.number_input("Transport (GBP)", value=None, step=50.0, key="uk_transport")
-    insurance_eur = st.number_input("Insurance (EUR)", value=None, step=10.0, key="uk_ins")
-    weight = st.number_input("Vehicle weight (kg)", value=None, step=50, key="uk_weight")
+    purchase = st.number_input("Purchase (GBP)", value=None, step=100.0)
+    transport = st.number_input("Transport (GBP)", value=None, step=50.0)
+    insurance_eur = st.number_input("Insurance (EUR)", value=None, step=10.0)
+    st.number_input("Vehicle weight (kg)", value=None, step=50, disabled=True)
 
     extras = extra_fees("uk")
 
@@ -124,7 +118,7 @@ with tabs[0]:
         duty = cif * cfg["duty_percent"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        cy_base = (
+        cy_fees = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
@@ -132,7 +126,7 @@ with tabs[0]:
             + cfg["certifying_officer"]
         )
 
-        total = cif + duty + vat + cy_base + extras
+        total = cif + duty + vat + cy_fees + extras
 
         st.success(f"Final total: €{total:,.2f}")
 
@@ -154,9 +148,8 @@ with tabs[0]:
 # JAPAN TAB
 # ---------------------------
 with tabs[1]:
-    purchase = st.number_input("Purchase (EUR)", value=None, step=500.0, key="jp_purchase")
-    shipping = st.number_input("Shipping (EUR)", value=None, step=100.0, key="jp_shipping")
-    weight = st.number_input("Vehicle weight (kg)", value=None, step=50, key="jp_weight")
+    purchase = st.number_input("Purchase (EUR)", value=None, step=500.0)
+    shipping = st.number_input("Shipping (EUR)", value=None, step=100.0)
 
     extras = extra_fees("jp")
 
@@ -168,15 +161,16 @@ with tabs[1]:
         duty = cif * cfg["duty_percent"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        cy_base = (
+        cy_fees = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
             + cfg["registration"]
             + cfg["certifying_officer"]
+            + cfg["sva_japan"]   # ✅ JAPAN ONLY
         )
 
-        total = cif + duty + vat + cy_base + extras
+        total = cif + duty + vat + cy_fees + extras
 
         st.success(f"Final total: €{total:,.2f}")
 
@@ -191,6 +185,7 @@ with tabs[1]:
         st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
         st.write(f"Registration: €{cfg['registration']:,.2f}")
         st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
         st.write(f"Extra fees: €{extras:,.2f}")
 
 
