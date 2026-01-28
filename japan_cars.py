@@ -136,14 +136,16 @@ with tabs[0]:
         duty = cif * cfg["duty_percent"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        tom = calculate_tom(weight)
+        # tom = calculate_tom(weight)  # TEMPORARILY DISABLED
+        tom = 0.0
+
         cy_base = (
             cfg["mot"]
             + cfg["plates"]
             + cfg["road_tax"]
             + cfg["registration"]
             + cfg["certifying_officer"]
-            + tom
+            # + tom  # TOM TEMPORARILY DISABLED
         )
 
         total = cif + duty + vat + cy_base + extras
@@ -164,7 +166,7 @@ with tabs[0]:
         st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
         st.write(f"Registration: €{cfg['registration']:,.2f}")
         st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"TOM: €{tom:,.2f}")
+        # st.write(f"TOM: €{tom:,.2f}")  # TOM TEMPORARILY DISABLED
         st.write(f"Extra fees: €{extras:,.2f}")
 
 
