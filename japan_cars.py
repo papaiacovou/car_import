@@ -16,7 +16,8 @@ DEFAULT_CONFIG = {
     "vat_cy_percent": 19.0,
     "mot": 60.0,
     "plates": 40.0,
-    "road_tax": 0.0
+    "road_tax": 0.0,
+    "registration": 0.0
 }
 
 # ---------------------------
@@ -58,7 +59,7 @@ def calculate_tom_from_weight(weight):
     return 0.0
 
 # ---------------------------
-# FX
+# FX (ECB)
 # ---------------------------
 @st.cache_data(ttl=3600)
 def get_gbp_to_eur_rate():
@@ -91,14 +92,14 @@ tabs = st.tabs(["🇬🇧 UK", "🇯🇵 Japan", "⚙️ Admin"])
 # ---------------------------
 def extra_fees_ui(prefix):
     with st.expander("Extra fees (optional)"):
-        registration = st.number_input("Registration (€)", 0.0, key=f"{prefix}_reg")
+        reg_extra = st.number_input("Extra registration (€)", 0.0, key=f"{prefix}_reg")
         customs = st.number_input("Customs agent (€)", 0.0, key=f"{prefix}_cust")
         road_extra = st.number_input("Extra road tax (€)", 0.0, key=f"{prefix}_road")
         insurance = st.number_input("Insurance CY (€)", 0.0, key=f"{prefix}_ins")
         port = st.number_input("Port charges (€)", 0.0, key=f"{prefix}_port")
         co2 = st.number_input("CO2 / inspection (€)", 0.0, key=f"{prefix}_co2")
 
-    return registration + customs + road_extra + insurance + port + co2
+    return reg_extra + customs + road_extra + insurance + port + co2
 
 # ---------------------------
 # UK
@@ -120,7 +121,13 @@ with tabs[0]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         tom = calculate_tom_from_weight(weight)
-        cy_fees = cfg["mot"] + cfg["plates"] + cfg["road_tax"] + tom
+        cy_fees = (
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + tom
+        )
 
         total = cif + duty + vat + cy_fees + extras
         st.success(f"Final total: €{total:,.2f}")
@@ -141,7 +148,13 @@ with tabs[1]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         tom = calculate_tom_from_weight(weight)
-        cy_fees = cfg["mot"] + cfg["plates"] + cfg["road_tax"] + tom
+        cy_fees = (
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + tom
+        )
 
         total = cif + duty + vat + cy_fees + extras
         st.success(f"Final total: €{total:,.2f}")
@@ -163,6 +176,7 @@ with tabs[2]:
         cfg_edit["mot"] = st.number_input("MOT (€)", value=cfg_edit["mot"])
         cfg_edit["plates"] = st.number_input("Plates (€)", value=cfg_edit["plates"])
         cfg_edit["road_tax"] = st.number_input("Road Tax (€)", value=cfg_edit["road_tax"])
+        cfg_edit["registration"] = st.number_input("Registration (€)", value=cfg_edit["registration"])
 
         if st.button("Save settings"):
             save_cfg(cfg_edit)
