@@ -1,33 +1,16 @@
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
-import json
-import os
 
 # ==========================
-# Config
+# CONSTANTS (simple & fixed)
 # ==========================
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "tax_config.json")
-ADMIN_PASSWORD = "i4ipapa"
-
-# ==========================
-# Helpers
-# ==========================
-
-def to_float(value):
-    if value in (None, ""):
-        return 0.0
-    try:
-        return float(str(value).replace(",", "."))
-    except ValueError:
-        return 0.0
-
-
-# ==========================
-# TOM BY WEIGHT
-# ==========================
+VAT_UK = 20
+DUTY = 10
+VAT_CY = 19
+MOT = 60
+PLATES = 40
 
 TOM_BY_WEIGHT = [
     (0, 2000, 180),
@@ -40,154 +23,71 @@ TOM_BY_WEIGHT = [
     (3301, 3500, 550),
 ]
 
+# ==========================
+# HELPERS
+# ==========================
 
-def calculate_tom_from_weight(weight):
-    for min_w, max_w, fee in TOM_BY_WEIGHT:
-        if min_w <= weight <= max_w:
+def calculate_tom(weight):
+    for a, b, fee in TOM_BY_WEIGHT:
+        if a <= weight <= b:
             return fee
-    return None
+    return 0
 
-
-# ==========================
-# Config persistence
-# ==========================
-
-def load_tax_config():
-    if not os.path.exists(CONFIG_FILE):
-        data = {
-            "vat_uk_percent": 20,
-            "duty_percent": 10,
-            "vat_cy_percent": 19,
-            "mot": 60,
-            "plates": 40,
-        }
-        save_tax_config(data)
-        return data
-
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_tax_config(data):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
-
-# ==========================
-# FX (ECB)
-# ==========================
 
 @st.cache_data(ttl=3600)
-def get_gbp_to_eur_rate():
+def get_gbp_rate():
     try:
-        url = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
-        r = requests.get(url, timeout=5)
-        tree = ET.fromstring(r.content)
-        ns = {"d": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
-
-        date = tree.find(".//d:Cube[@time]", ns).attrib["time"]
-        gbp = float(tree.find(".//d:Cube[@currency='GBP']", ns).attrib["rate"])
+        xml = requests.get(
+            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+            timeout=5
+        ).content
+        root = ET.fromstring(xml)
+        ns = {"e": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
+        gbp = float(root.find(".//e:Cube[@currency='GBP']", ns).attrib["rate"])
+        date = root.find(".//e:Cube[@time]", ns).attrib["time"]
         return round(1 / gbp, 4), date
-    except Exception:
-        return 1.1534, "fallback"
+    except:
+        return 1.15, "fallback"
 
 
 # ==========================
-# UI
+# UI (MOBILE FIRST)
 # ==========================
 
-st.set_page_config("Car Import Calculator", layout="wide")
-st.title("Car Import Calculator")
+st.set_page_config(
+    page_title="UK Import Calculator",
+    layout="centered"
+)
 
-cfg = load_tax_config()
-rate, rate_date = get_gbp_to_eur_rate()
+st.title("🚗 UK Car Import")
 
-tab_uk, tab_jp, tab_admin = st.tabs(["🇬🇧 UK Import", "🇯🇵 Japan Import", "⚙️ Admin"])
+rate, rate_date = get_gbp_rate()
+st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
 
+st.markdown("### Enter details")
 
-# ==========================
-# UK TAB
-# ==========================
+purchase = st.number_input("Purchase price (£)", step=100.0)
+transport = st.number_input("Transport (£)", step=50.0)
+insurance = st.number_input("Insurance (€)", step=10.0)
+weight = st.number_input("Vehicle weight (kg)", step=50)
 
-with tab_uk:
-    st.subheader("UK Import Calculator")
+st.markdown("---")
 
-    col1, col2 = st.columns(2)
+if st.button("Calculate Total Cost", use_container_width=True):
+    tom = calculate_tom(weight)
 
-    with col1:
-        purchase = st.number_input("Purchase price (£)", step=100.0)
-        transport = st.number_input("Transport (£)", step=50.0)
-        insurance = st.number_input("Transport insurance (€)", step=10.0)
-        weight = st.number_input("Vehicle weight (kg)", step=50)
+    vat_uk = purchase * VAT_UK / 100
+    purchase_eur = (purchase + vat_uk) * rate
+    transport_eur = transport * rate
 
-    with col2:
-        st.info(f"GBP → EUR: {rate} (ECB {rate_date})")
-        tom = calculate_tom_from_weight(weight) if weight > 0 else 0
+    cif = purchase_eur + transport_eur + insurance
+    duty = cif * DUTY / 100
+    vat = (cif + duty) * VAT_CY / 100
 
-    if st.button("Calculate UK Import"):
-        vat_uk = purchase * cfg["vat_uk_percent"] / 100
-        purchase_eur = (purchase + vat_uk) * rate
-        transport_eur = transport * rate
+    total = cif + duty + vat + MOT + PLATES + tom
 
-        cif = purchase_eur + transport_eur + insurance
-        duty = cif * cfg["duty_percent"] / 100
-        vat = (cif + duty) * cfg["vat_cy_percent"] / 100
+    st.success(f"✅ Final Total: €{total:,.2f}")
 
-        total_import = cif + duty + vat
-        total_cy = cfg["mot"] + cfg["plates"] + tom
-
-        st.success(f"Final Total: €{total_import + total_cy:,.2f}")
-
-        st.json({
-            "CIF": cif,
-            "Duty": duty,
-            "VAT": vat,
-            "TOM": tom,
-            "Cyprus Fees": total_cy
-        })
-
-
-# ==========================
-# JAPAN TAB
-# ==========================
-
-with tab_jp:
-    st.subheader("Japan Import Calculator")
-
-    purchase = st.number_input("Purchase price (€)", key="jp_p")
-    shipping = st.number_input("Shipping (€)", key="jp_s")
-    weight = st.number_input("Vehicle weight (kg)", key="jp_w")
-
-    if st.button("Calculate Japan Import"):
-        tom = calculate_tom_from_weight(weight) if weight > 0 else 0
-
-        cif = purchase + shipping
-        duty = cif * cfg["duty_percent"] / 100
-        vat = (cif + duty) * cfg["vat_cy_percent"] / 100
-
-        total = cif + duty + vat + cfg["mot"] + cfg["plates"] + tom
-
-        st.success(f"Final Total: €{total:,.2f}")
-
-
-# ==========================
-# ADMIN TAB
-# ==========================
-
-with tab_admin:
-    st.subheader("Admin Settings")
-
-    pwd = st.text_input("Admin password", type="password")
-
-    if pwd == ADMIN_PASSWORD:
-        cfg["vat_uk_percent"] = st.number_input("UK VAT %", value=cfg["vat_uk_percent"])
-        cfg["duty_percent"] = st.number_input("Import duty %", value=cfg["duty_percent"])
-        cfg["vat_cy_percent"] = st.number_input("Cyprus VAT %", value=cfg["vat_cy_percent"])
-        cfg["mot"] = st.number_input("MOT (€)", value=cfg["mot"])
-        cfg["plates"] = st.number_input("Plates (€)", value=cfg["plates"])
-
-        if st.button("Save settings"):
-            save_tax_config(cfg)
-            st.success("Settings saved")
-    else:
-        st.warning("Enter admin password")
+    st.metric("CIF", f"€{cif:,.2f}")
+    st.metric("Taxes", f"€{duty + vat:,.2f}")
+    st.metric("Cyprus fees", f"€{MOT + PLATES + tom:,.2f}")
