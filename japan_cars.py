@@ -19,7 +19,8 @@ DEFAULT_CONFIG = {
     "road_tax": 120.0,
     "registration": 150.0,
     "certifying_officer": 80.0,
-    "sva_japan": 0.0,   # ✅ JAPAN ONLY
+    "service": 150.0,     # ✅ BOTH UK & JAPAN
+    "sva_japan": 0.0,     # ✅ JAPAN ONLY
 }
 
 # ---------------------------
@@ -33,12 +34,23 @@ def load_cfg():
     if not os.path.exists(CONFIG_FILE):
         save_cfg(DEFAULT_CONFIG)
         return dict(DEFAULT_CONFIG)
+
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            cfg = json.load(f)
     except:
-        save_cfg(DEFAULT_CONFIG)
-        return dict(DEFAULT_CONFIG)
+        cfg = dict(DEFAULT_CONFIG)
+
+    # Ensure new keys exist
+    changed = False
+    for k, v in DEFAULT_CONFIG.items():
+        if k not in cfg:
+            cfg[k] = v
+            changed = True
+    if changed:
+        save_cfg(cfg)
+
+    return cfg
 
 
 def save_cfg(cfg):
@@ -79,7 +91,7 @@ tabs = st.tabs(["🇬🇧 UK", "🇯🇵 Japan", "⚙️ Admin"])
 
 
 # ---------------------------
-# Extra fees (shared)
+# Extra fees
 # ---------------------------
 def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
@@ -101,7 +113,6 @@ with tabs[0]:
     purchase = st.number_input("Purchase (GBP)", value=None, step=100.0)
     transport = st.number_input("Transport (GBP)", value=None, step=50.0)
     insurance_eur = st.number_input("Insurance (EUR)", value=None, step=10.0)
-    st.number_input("Vehicle weight (kg)", value=None, step=50, disabled=True)
 
     extras = extra_fees("uk")
 
@@ -124,24 +135,15 @@ with tabs[0]:
             + cfg["road_tax"]
             + cfg["registration"]
             + cfg["certifying_officer"]
+            + cfg["service"]   # ✅ SERVICE
         )
 
         total = cif + duty + vat + cy_fees + extras
 
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Extra fees: €{extras:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
 
 
 # ---------------------------
@@ -167,6 +169,7 @@ with tabs[1]:
             + cfg["road_tax"]
             + cfg["registration"]
             + cfg["certifying_officer"]
+            + cfg["service"]     # ✅ SERVICE
             + cfg["sva_japan"]   # ✅ JAPAN ONLY
         )
 
@@ -174,19 +177,9 @@ with tabs[1]:
 
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
         st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
-        st.write(f"Extra fees: €{extras:,.2f}")
 
 
 # ---------------------------
