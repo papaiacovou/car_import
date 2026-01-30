@@ -225,3 +225,13 @@ with tabs[2]:
             st.success("Saved — refresh page")
     elif pwd:
         st.error("Wrong password")
+
+st.markdown(
+    """
+    <hr style="margin-top:50px;">
+    <div style="text-align:center; color:gray; font-size:14px;">
+        © 2025 Ioannis Papaiacovou. All rights reserved.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
