@@ -31,26 +31,18 @@ def nz(v):
 
 
 def load_cfg():
+    """
+    Load config ONCE from disk.
+    Defaults are written ONLY if file does not exist.
+    Never overwritten automatically.
+    """
     if not os.path.exists(CONFIG_FILE):
-        save_cfg(DEFAULT_CONFIG)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
         return dict(DEFAULT_CONFIG)
 
-    try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-    except:
-        cfg = dict(DEFAULT_CONFIG)
-
-    changed = False
-    for k, v in DEFAULT_CONFIG.items():
-        if k not in cfg:
-            cfg[k] = v
-            changed = True
-
-    if changed:
-        save_cfg(cfg)
-
-    return cfg
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def save_cfg(cfg):
@@ -212,7 +204,7 @@ with tabs[2]:
     if pwd == ADMIN_PASSWORD:
         st.success("Access granted")
 
-        for k in DEFAULT_CONFIG:
+        for k in cfg:
             cfg[k] = st.number_input(
                 k.replace("_", " ").title(),
                 value=float(cfg[k]),
@@ -222,10 +214,14 @@ with tabs[2]:
 
         if st.button("Save settings"):
             save_cfg(cfg)
-            st.success("Saved — refresh page")
+            st.success("Saved. Values will persist until changed again.")
     elif pwd:
         st.error("Wrong password")
 
+
+# ---------------------------
+# FOOTER
+# ---------------------------
 st.markdown(
     """
     <hr style="margin-top:50px;">
