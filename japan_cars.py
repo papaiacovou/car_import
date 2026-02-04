@@ -1,53 +1,42 @@
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
-import json
-import os
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ---------------------------
-# Config
+# Google Sheets Config
 # ---------------------------
-CONFIG_FILE = "tax_config.json"
 ADMIN_PASSWORD = "i4ipapa"
 
-DEFAULT_CONFIG = {
-    "vat_uk_percent": 20.0,
-    "duty_percent": 10.0,
-    "vat_cy_percent": 19.0,
-    "mot": 60.0,
-    "plates": 40.0,
-    "road_tax": 120.0,
-    "registration": 150.0,
-    "certifying_officer": 80.0,
-    "service": 150.0,     # BOTH
-    "sva_japan": 0.0,     # JAPAN ONLY
-}
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+CREDS = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=SCOPES,
+)
+
+gc = gspread.authorize(CREDS)
+
+SHEET_ID = st.secrets["SPREADSHEET_ID"]
+sheet = gc.open_by_key(SHEET_ID).sheet1
+
+
+def load_cfg():
+    rows = sheet.get_all_records()
+    return {row["key"]: float(row["value"]) for row in rows}
+
+
+def save_cfg(cfg):
+    for i, (k, v) in enumerate(cfg.items(), start=2):
+        sheet.update_cell(i, 2, v)
+
 
 # ---------------------------
 # Helpers
 # ---------------------------
 def nz(v):
     return float(v) if v not in (None, "") else 0.0
-
-
-def load_cfg():
-    """
-    Load config ONCE from disk.
-    Defaults are written ONLY if file does not exist.
-    Never overwritten automatically.
-    """
-    if not os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-        return dict(DEFAULT_CONFIG)
-
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_cfg(cfg):
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, ensure_ascii=False)
 
 
 # ---------------------------
@@ -214,7 +203,7 @@ with tabs[2]:
 
         if st.button("Save settings"):
             save_cfg(cfg)
-            st.success("Saved. Values will persist until changed again.")
+            st.success("Saved. Values are permanently stored.")
     elif pwd:
         st.error("Wrong password")
 
