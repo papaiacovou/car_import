@@ -247,18 +247,45 @@ if is_admin:
             cy_vat = st.session_state.last_cy_vat
             cost_net = final_total - cy_vat
 
-            st.write(f"**Car cost (net): €{cost_net:,.2f}**")
+            st.markdown(f"**Car cost (net of Cyprus VAT): €{cost_net:,.2f}**")
 
-            for target in [2000, 3000, 4000, 5000]:
+            st.markdown("### 🎯 Profit targets")
+
+            # Editable profit targets
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                p1 = nz(st.number_input("Profit target 1 (€)", value=2000.0, step=500.0))
+            with c2:
+                p2 = nz(st.number_input("Profit target 2 (€)", value=3000.0, step=500.0))
+            with c3:
+                p3 = nz(st.number_input("Profit target 3 (€)", value=4000.0, step=500.0))
+
+            p4 = nz(st.number_input("Profit target 4 (€)", value=5000.0, step=500.0))
+
+            profit_targets = [p1, p2, p3, p4]
+
+            st.markdown("### 💶 Required selling prices (incl. VAT)")
+
+            for target in profit_targets:
+                if target <= 0:
+                    continue
+
                 net_sale = cost_net + target
                 sell_price = net_sale * 1.19
                 vat_on_sale = sell_price * 19 / 119
 
                 st.write(
-                    f"Profit €{target:,.0f} → "
+                    f"**Profit €{target:,.0f} → "
                     f"Sell at €{sell_price:,.2f} "
-                    f"(VAT €{vat_on_sale:,.2f})"
+                    f"(VAT €{vat_on_sale:,.2f}, Net €{net_sale:,.2f})**"
                 )
+
+            st.info(
+                "ℹ️ Selling price includes 19% VAT. "
+                "Net sale = price − VAT. "
+                "Profit = net sale − car cost."
+            )
+
 
 # ============================================================
 # ⚙️ ADMIN SETTINGS
