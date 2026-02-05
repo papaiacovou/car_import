@@ -5,9 +5,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 import bcrypt
 
-# ---------------------------
-# Google Sheets + Auth
-# ---------------------------
+# ============================================================
+# Google Sheets + Authentication
+# ============================================================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 CREDS = Credentials.from_service_account_info(
@@ -22,27 +22,49 @@ book = gc.open_by_key(SHEET_ID)
 cfg_sheet = book.sheet1
 users_sheet = book.worksheet("users")
 
-# ---------------------------
+# ============================================================
 # Helpers
-# ---------------------------
+# ============================================================
 def nz(v):
     return float(v) if v not in (None, "") else 0.0
 
 
-def _to_bool(v):
-    return str(v).lower() in ("1", "true", "yes", "y")
+def to_bool(v):
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
-# ---------------------------
-# Config from Google Sheets
-# ---------------------------
+# ============================================================
+# Config (Google Sheets)
+# ============================================================
 def load_cfg():
     rows = cfg_sheet.get_all_records()
     cfg = {}
     for r in rows:
-        k = str(r.get("key", "")).strip()
-        if k:
-            cfg[k] = float(r.get("value", 0))
+        key = str(r.get("key", "")).strip()
+        if key:
+            cfg[key] = float(r.get("value", 0.0))
+
+    # --- PROFESSIONAL SAFETY GUARDS ---
+    required = [
+        "vat_uk_percent",
+        "duty_percent_10",
+        "duty_percent_5",
+        "vat_cy_percent",
+        "mot",
+        "plates",
+        "road_tax",
+        "registration",
+        "certifying_officer",
+        "service",
+        "customs_agent",
+        "port_charges",
+        "sva_japan",
+    ]
+
+    for k in required:
+        if k not in cfg:
+            raise RuntimeError(f"Admin configuration error: missing '{k}' in Google Sheet")
+
     return cfg
 
 
@@ -61,16 +83,16 @@ def save_cfg(cfg):
         if k in key_to_row:
             updates.append({
                 "range": gspread.utils.rowcol_to_a1(key_to_row[k], val_col),
-                "values": [[str(v)]]
+                "values": [[str(v)]],
             })
 
     if updates:
         cfg_sheet.batch_update(updates)
 
 
-# ---------------------------
-# Users / Auth
-# ---------------------------
+# ============================================================
+# Users / Login
+# ============================================================
 @st.cache_data(ttl=60)
 def load_users():
     rows = users_sheet.get_all_records()
@@ -79,7 +101,7 @@ def load_users():
         users[r["username"]] = {
             "hash": r["password_hash"],
             "role": r.get("role", "user"),
-            "active": _to_bool(r.get("active", True)),
+            "active": to_bool(r.get("active", True)),
         }
     return users
 
@@ -94,9 +116,9 @@ def verify_login(username, password):
     return False, None
 
 
-# ---------------------------
+# ============================================================
 # ECB FX
-# ---------------------------
+# ============================================================
 @st.cache_data(ttl=3600)
 def get_gbp_rate():
     try:
@@ -113,15 +135,15 @@ def get_gbp_rate():
         return 1.1534, "fallback"
 
 
-# ---------------------------
-# UI
-# ---------------------------
+# ============================================================
+# UI Setup
+# ============================================================
 st.set_page_config(page_title="Car Import Calculator", layout="centered")
 st.title("🚗 Car Import Calculator")
 
-# ---------------------------
-# Login
-# ---------------------------
+# ----------------------------
+# Login Gate
+# ----------------------------
 if "auth" not in st.session_state:
     st.session_state.auth = False
     st.session_state.role = ""
@@ -137,12 +159,12 @@ if not st.session_state.auth:
                 st.session_state.role = role
                 st.rerun()
             else:
-                st.error("Invalid login")
+                st.error("Invalid credentials")
     st.stop()
 
-# ---------------------------
+# ----------------------------
 # Load config
-# ---------------------------
+# ----------------------------
 cfg = load_cfg()
 rate, rate_date = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
@@ -152,9 +174,10 @@ if is_admin:
     tabs.append("⚙️ Admin")
 tabs = st.tabs(tabs)
 
-# ---------------------------
-# Extra fees
-# ---------------------------
+
+# ============================================================
+# Extra Fees (optional)
+# ============================================================
 def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
         reg = st.number_input("Extra registration (€)", value=None, step=10.0, key=f"{prefix}_reg")
@@ -163,9 +186,9 @@ def extra_fees(prefix):
     return nz(reg) + nz(ins) + nz(co2)
 
 
-# ---------------------------
-# UK TAB
-# ---------------------------
+# ============================================================
+# 🇬🇧 UK TAB — DUTY LOCKED TO 10%
+# ============================================================
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
 
@@ -175,7 +198,7 @@ with tabs[0]:
 
     extras = extra_fees("uk")
 
-    if st.button("Calculate UK"):
+    if st.button("Calculate UK", use_container_width=True):
         purchase, transport, insurance = nz(purchase), nz(transport), nz(insurance)
 
         vat_uk = purchase * cfg["vat_uk_percent"] / 100
@@ -183,106 +206,93 @@ with tabs[0]:
         transport_eur = transport * rate
 
         cif = purchase_eur + transport_eur + insurance
-        duty = cif * cfg["duty_percent"] / 100
+
+        # 🔒 UK DUTY — HARD LOCKED
+        assert "duty_percent_10" in cfg, "Admin error: duty_percent_10 missing"
+        duty = cif * cfg["duty_percent_10"] / 100
+
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        cy_items = {
-            "MOT": cfg["mot"],
-            "Plates": cfg["plates"],
-            "Road Tax": cfg["road_tax"],
-            "Registration": cfg["registration"],
-            "Certifying Officer": cfg["certifying_officer"],
-            "Service": cfg["service"],
-            "Customs agent": cfg["customs_agent"],
-            "Port charges": cfg["port_charges"],
-        }
+        cy_fees = (
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
+            + cfg["port_charges"]
+        )
 
-        cy_total = sum(cy_items.values())
-        total = cif + duty + vat + cy_total + extras
-
+        total = cif + duty + vat + cy_fees + extras
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
 
-        st.markdown("### 🇨🇾 Cyprus fees")
-        for k, v in cy_items.items():
-            st.write(f"{k}: €{v:,.2f}")
-        st.write(f"Extra fees: €{extras:,.2f}")
-
-
-# ---------------------------
-# JAPAN TAB
-# ---------------------------
+# ============================================================
+# 🇯🇵 JAPAN TAB — USER SELECTS 5% OR 10%
+# ============================================================
 with tabs[1]:
-    purchase = st.number_input("Purchase (EUR)", value=None, step=500.0)
-    shipping = st.number_input("Shipping (EUR)", value=None, step=100.0)
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        purchase = st.number_input("Purchase (EUR)", value=None, step=500.0)
+    with c2:
+        duty_choice = st.radio("Duty rate", ["10%", "5%"], horizontal=True)
 
+    shipping = st.number_input("Shipping (EUR)", value=None, step=100.0)
     extras = extra_fees("jp")
 
-    if st.button("Calculate Japan"):
+    if st.button("Calculate Japan", use_container_width=True):
         purchase, shipping = nz(purchase), nz(shipping)
-
         cif = purchase + shipping
-        duty = cif * cfg["duty_percent"] / 100
+
+        duty_rate = cfg["duty_percent_5"] if duty_choice == "5%" else cfg["duty_percent_10"]
+        duty = cif * duty_rate / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        cy_items = {
-            "MOT": cfg["mot"],
-            "Plates": cfg["plates"],
-            "Road Tax": cfg["road_tax"],
-            "Registration": cfg["registration"],
-            "Certifying Officer": cfg["certifying_officer"],
-            "Service": cfg["service"],
-            "Customs agent": cfg["customs_agent"],
-            "Port charges": cfg["port_charges"],
-            "SVA (Japan)": cfg["sva_japan"],
-        }
+        cy_fees = (
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
+            + cfg["port_charges"]
+            + cfg["sva_japan"]
+        )
 
-        cy_total = sum(cy_items.values())
-        total = cif + duty + vat + cy_total + extras
-
+        total = cif + duty + vat + cy_fees + extras
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
 
-        st.markdown("### 🇨🇾 Cyprus fees")
-        for k, v in cy_items.items():
-            st.write(f"{k}: €{v:,.2f}")
-        st.write(f"Extra fees: €{extras:,.2f}")
-
-
-# ---------------------------
-# ADMIN TAB
-# ---------------------------
+# ============================================================
+# ⚙️ ADMIN TAB
+# ============================================================
 if is_admin:
     with tabs[2]:
-        st.subheader("Admin settings (Google Sheets)")
+        st.subheader("Admin Settings (Google Sheets)")
         cfg_edit = dict(cfg)
 
         for k in cfg_edit:
-            cfg_edit[k] = st.number_input(
-                k.replace("_", " ").title(),
-                value=float(cfg_edit[k]),
-                step=1.0,
-            )
+            label = k.replace("_", " ").title()
+            if k == "duty_percent_10":
+                label = "Duty Percent (10)"
+            if k == "duty_percent_5":
+                label = "Duty Percent (5)"
 
-        if st.button("Save"):
+            cfg_edit[k] = st.number_input(label, value=float(cfg_edit[k]), step=1.0)
+
+        if st.button("Save settings", use_container_width=True):
             save_cfg(cfg_edit)
             st.cache_data.clear()
-            st.success("Saved permanently to Google Sheets")
+            st.success("Saved permanently")
             st.rerun()
 
 
-# ---------------------------
+# ============================================================
 # Footer
-# ---------------------------
+# ============================================================
 st.markdown(
     "<hr><center>© 2025 Ioannis Papaiacovou. All rights reserved.</center>",
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
