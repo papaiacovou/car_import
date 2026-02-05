@@ -8,7 +8,7 @@ import bcrypt
 # ---------------------------
 # Google Sheets + Auth Config
 # ---------------------------
-ADMIN_PASSWORD = "i4ipapa"  # (kept only if you still want it; role-based admin controls access)
+ADMIN_PASSWORD = "i4ipapa"  # Role-based admin controls access; kept for reference
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 CREDS = Credentials.from_service_account_info(
@@ -25,7 +25,6 @@ cfg_sheet = book.sheet1
 
 # Users are stored in a worksheet named exactly "users"
 users_sheet = book.worksheet("users")
-
 
 # ---------------------------
 # Helpers
@@ -87,7 +86,7 @@ def save_cfg(cfg: dict):
         if k:
             key_to_row[k] = r
 
-    # Batch updates
+    # Batch updates (values column)
     updates = []
     for k, v in cfg.items():
         if k in key_to_row:
@@ -211,10 +210,27 @@ with st.sidebar:
     st.write(f"🔐 **Role:** {st.session_state['role']}")
     st.button("Logout", on_click=logout, use_container_width=True)
 
-
 # Load config after login
 cfg = load_cfg()
 rate, rate_date = get_gbp_rate()
+
+# Ensure required keys exist (so missing sheet rows don't crash)
+REQUIRED_KEYS = [
+    "vat_uk_percent",
+    "duty_percent",
+    "vat_cy_percent",
+    "mot",
+    "plates",
+    "road_tax",
+    "registration",
+    "certifying_officer",
+    "service",
+    "sva_japan",
+    "customs_agent",
+    "port_charges",
+]
+for k in REQUIRED_KEYS:
+    cfg.setdefault(k, 0.0)
 
 is_admin = (st.session_state.get("role") == "admin")
 
@@ -224,19 +240,16 @@ if is_admin:
     tab_labels.append("⚙️ Admin")
 tabs = st.tabs(tab_labels)
 
-
 # ---------------------------
-# Extra fees
+# Extra fees (optional)
+# NOTE: Customs agent + Port charges moved to Admin (Google Sheet config)
 # ---------------------------
 def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
         reg = st.number_input("Extra registration (€)", value=None, step=10.0, key=f"{prefix}_reg")
-        agent = st.number_input("Customs agent (€)", value=None, step=10.0, key=f"{prefix}_agent")
         ins = st.number_input("Insurance CY (€)", value=None, step=10.0, key=f"{prefix}_ins")
-        port = st.number_input("Port charges (€)", value=None, step=10.0, key=f"{prefix}_port")
         co2 = st.number_input("CO₂ / inspection (€)", value=None, step=10.0, key=f"{prefix}_co2")
-
-    return nz(reg) + nz(agent) + nz(ins) + nz(port) + nz(co2)
+    return nz(reg) + nz(ins) + nz(co2)
 
 
 # ---------------------------
@@ -256,21 +269,27 @@ with tabs[0]:
         transport = nz(transport)
         insurance = nz(insurance)
 
-        vat_uk = purchase * cfg.get("vat_uk_percent", 0.0) / 100
+        # UK VAT on purchase (GBP)
+        vat_uk = purchase * cfg["vat_uk_percent"] / 100.0
+
+        # Convert purchase+UK VAT to EUR, convert transport to EUR, then CIF
         purchase_eur = (purchase + vat_uk) * rate
         transport_eur = transport * rate
-
         cif = purchase_eur + transport_eur + insurance
-        duty = cif * cfg.get("duty_percent", 0.0) / 100
-        vat = (cif + duty) * cfg.get("vat_cy_percent", 0.0) / 100
 
+        duty = cif * cfg["duty_percent"] / 100.0
+        vat = (cif + duty) * cfg["vat_cy_percent"] / 100.0
+
+        # Cyprus fees (shared, configurable)
         cy_fees = (
-            cfg.get("mot", 0.0)
-            + cfg.get("plates", 0.0)
-            + cfg.get("road_tax", 0.0)
-            + cfg.get("registration", 0.0)
-            + cfg.get("certifying_officer", 0.0)
-            + cfg.get("service", 0.0)
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]   # moved from extra fees -> admin
+            + cfg["port_charges"]    # moved from extra fees -> admin
         )
 
         total = cif + duty + vat + cy_fees + extras
@@ -278,17 +297,22 @@ with tabs[0]:
         st.success(f"Final total: €{total:,.2f}")
 
         st.markdown("### 📊 Import breakdown")
+        st.write(f"UK VAT (GBP): £{vat_uk:,.2f}")
+        st.write(f"Purchase EUR (with UK VAT): €{purchase_eur:,.2f}")
+        st.write(f"Transport EUR: €{transport_eur:,.2f}")
         st.write(f"CIF: €{cif:,.2f}")
         st.write(f"Duty: €{duty:,.2f}")
         st.write(f"Cyprus VAT: €{vat:,.2f}")
 
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg.get('mot',0.0):,.2f}")
-        st.write(f"Plates: €{cfg.get('plates',0.0):,.2f}")
-        st.write(f"Road Tax: €{cfg.get('road_tax',0.0):,.2f}")
-        st.write(f"Registration: €{cfg.get('registration',0.0):,.2f}")
-        st.write(f"Certifying Officer: €{cfg.get('certifying_officer',0.0):,.2f}")
-        st.write(f"Service: €{cfg.get('service',0.0):,.2f}")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
         st.write(f"Extra fees: €{extras:,.2f}")
 
 
@@ -306,17 +330,20 @@ with tabs[1]:
         shipping = nz(shipping)
 
         cif = purchase + shipping
-        duty = cif * cfg.get("duty_percent", 0.0) / 100
-        vat = (cif + duty) * cfg.get("vat_cy_percent", 0.0) / 100
+        duty = cif * cfg["duty_percent"] / 100.0
+        vat = (cif + duty) * cfg["vat_cy_percent"] / 100.0
 
+        # Cyprus fees + Japan-only SVA
         cy_fees = (
-            cfg.get("mot", 0.0)
-            + cfg.get("plates", 0.0)
-            + cfg.get("road_tax", 0.0)
-            + cfg.get("registration", 0.0)
-            + cfg.get("certifying_officer", 0.0)
-            + cfg.get("service", 0.0)
-            + cfg.get("sva_japan", 0.0)  # JAPAN ONLY
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]   # moved from extra fees -> admin
+            + cfg["port_charges"]    # moved from extra fees -> admin
+            + cfg["sva_japan"]       # JAPAN ONLY
         )
 
         total = cif + duty + vat + cy_fees + extras
@@ -329,13 +356,15 @@ with tabs[1]:
         st.write(f"Cyprus VAT: €{vat:,.2f}")
 
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg.get('mot',0.0):,.2f}")
-        st.write(f"Plates: €{cfg.get('plates',0.0):,.2f}")
-        st.write(f"Road Tax: €{cfg.get('road_tax',0.0):,.2f}")
-        st.write(f"Registration: €{cfg.get('registration',0.0):,.2f}")
-        st.write(f"Certifying Officer: €{cfg.get('certifying_officer',0.0):,.2f}")
-        st.write(f"Service: €{cfg.get('service',0.0):,.2f}")
-        st.write(f"SVA (Japan): €{cfg.get('sva_japan',0.0):,.2f}")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
         st.write(f"Extra fees: €{extras:,.2f}")
 
 
@@ -346,13 +375,14 @@ if is_admin:
     with tabs[2]:
         st.subheader("Admin Settings (stored in Google Sheets)")
 
-        # Edit existing keys from Sheet1
         cfg_edit = dict(cfg)
 
-        for k in cfg_edit:
+        # Show ONLY the known keys, in a clean order
+        st.caption("Edit values below and click Save. Values persist in Google Sheets.")
+        for k in REQUIRED_KEYS:
             cfg_edit[k] = st.number_input(
                 k.replace("_", " ").title(),
-                value=float(cfg_edit[k]),
+                value=float(cfg_edit.get(k, 0.0)),
                 step=1.0,
                 key=f"adm_{k}"
             )
