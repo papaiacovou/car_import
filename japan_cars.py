@@ -362,9 +362,9 @@ if is_admin:
                 vat_on_sale = selling_price * 19 / 119
 
                 st.success(
-                    f"To make **€{target_profit:,.2f}** profit:\n\n"
-                    f"• Sell price (VAT incl): **€{selling_price:,.2f}**\n\n"
-                    f"• VAT on sale: **€{vat_on_sale:,.2f}**"
+                    f"{_('to_make_profit').format(profit=target_profit)}\n\n"
+                    f"• {_('sell_price_vat')}: **€{selling_price:,.2f}**\n\n"
+                    f"• {_('vat_on_sale')}: **€{vat_on_sale:,.2f}**"
                 )
 
             st.divider()
@@ -376,11 +376,12 @@ if is_admin:
                 profit = net_sale - cost_net
 
                 st.info(
-                    f"At selling price **€{manual_sell:,.2f}**:\n\n"
-                    f"• VAT payable: **€{vat_on_sale:,.2f}**\n\n"
-                    f"• Net sale: **€{net_sale:,.2f}**\n\n"
-                    f"• **Profit: €{profit:,.2f}**"
+                    f"{_('at_selling_price').format(price=manual_sell)}\n\n"
+                    f"• {_('vat_payable')}: **€{vat_on_sale:,.2f}**\n\n"
+                    f"• {_('net_sale')}: **€{net_sale:,.2f}**\n\n"
+                    f"• **{_('profit')}: €{profit:,.2f}**"
                 )
+
 
 # ============================================================
 # ⚙️ ADMIN SETTINGS — LOGIC UNCHANGED
