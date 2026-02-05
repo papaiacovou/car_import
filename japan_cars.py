@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 import bcrypt
 
 # ============================================================
-# Google Sheets + Authentication
+# Google Sheets setup
 # ============================================================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -34,7 +34,7 @@ def to_bool(v):
 
 
 # ============================================================
-# Config (Google Sheets)
+# Config from Google Sheets
 # ============================================================
 def load_cfg():
     rows = cfg_sheet.get_all_records()
@@ -44,7 +44,6 @@ def load_cfg():
         if key:
             cfg[key] = float(r.get("value", 0.0))
 
-    # --- PROFESSIONAL SAFETY GUARDS ---
     required = [
         "vat_uk_percent",
         "duty_percent_10",
@@ -63,7 +62,7 @@ def load_cfg():
 
     for k in required:
         if k not in cfg:
-            raise RuntimeError(f"Admin configuration error: missing '{k}' in Google Sheet")
+            raise RuntimeError(f"Missing config key: {k}")
 
     return cfg
 
@@ -136,14 +135,12 @@ def get_gbp_rate():
 
 
 # ============================================================
-# UI Setup
+# UI
 # ============================================================
 st.set_page_config(page_title="Car Import Calculator", layout="centered")
 st.title("🚗 Car Import Calculator")
 
-# ----------------------------
-# Login Gate
-# ----------------------------
+# Login gate
 if "auth" not in st.session_state:
     st.session_state.auth = False
     st.session_state.role = ""
@@ -162,9 +159,6 @@ if not st.session_state.auth:
                 st.error("Invalid credentials")
     st.stop()
 
-# ----------------------------
-# Load config
-# ----------------------------
 cfg = load_cfg()
 rate, rate_date = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
@@ -174,9 +168,8 @@ if is_admin:
     tabs.append("⚙️ Admin")
 tabs = st.tabs(tabs)
 
-
 # ============================================================
-# Extra Fees (optional)
+# Extra fees (optional)
 # ============================================================
 def extra_fees(prefix):
     with st.expander("Extra fees (optional)"):
@@ -187,7 +180,7 @@ def extra_fees(prefix):
 
 
 # ============================================================
-# 🇬🇧 UK TAB — DUTY LOCKED TO 10%
+# 🇬🇧 UK TAB
 # ============================================================
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} (ECB {rate_date})")
@@ -204,32 +197,43 @@ with tabs[0]:
         vat_uk = purchase * cfg["vat_uk_percent"] / 100
         purchase_eur = (purchase + vat_uk) * rate
         transport_eur = transport * rate
-
         cif = purchase_eur + transport_eur + insurance
 
-        # 🔒 UK DUTY — HARD LOCKED
-        assert "duty_percent_10" in cfg, "Admin error: duty_percent_10 missing"
         duty = cif * cfg["duty_percent_10"] / 100
-
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
-            + cfg["port_charges"]
+            cfg["mot"] + cfg["plates"] + cfg["road_tax"] +
+            cfg["registration"] + cfg["certifying_officer"] +
+            cfg["service"] + cfg["customs_agent"] + cfg["port_charges"]
         )
 
         total = cif + duty + vat + cy_fees + extras
+
         st.success(f"Final total: €{total:,.2f}")
+
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
+        st.write(f"Transport EUR: €{transport_eur:,.2f}")
+        st.write(f"Insurance: €{insurance:,.2f}")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty (10%): €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"Extra fees: €{extras:,.2f}")
 
 
 # ============================================================
-# 🇯🇵 JAPAN TAB — USER SELECTS 5% OR 10%
+# 🇯🇵 JAPAN TAB
 # ============================================================
 with tabs[1]:
     c1, c2 = st.columns([2, 1])
@@ -250,19 +254,32 @@ with tabs[1]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
-            + cfg["port_charges"]
-            + cfg["sva_japan"]
+            cfg["mot"] + cfg["plates"] + cfg["road_tax"] +
+            cfg["registration"] + cfg["certifying_officer"] +
+            cfg["service"] + cfg["customs_agent"] +
+            cfg["port_charges"] + cfg["sva_japan"]
         )
 
         total = cif + duty + vat + cy_fees + extras
+
         st.success(f"Final total: €{total:,.2f}")
+
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty ({duty_rate}%): €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
+        st.write(f"Extra fees: €{extras:,.2f}")
 
 
 # ============================================================
@@ -270,9 +287,9 @@ with tabs[1]:
 # ============================================================
 if is_admin:
     with tabs[2]:
-        st.subheader("Admin Settings (Google Sheets)")
-        cfg_edit = dict(cfg)
+        st.subheader("Admin Settings")
 
+        cfg_edit = dict(cfg)
         for k in cfg_edit:
             label = k.replace("_", " ").title()
             if k == "duty_percent_10":
