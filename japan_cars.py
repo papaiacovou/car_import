@@ -35,10 +35,7 @@ def to_bool(v):
 def load_cfg():
     rows = cfg_sheet.get_all_records()
     cfg = {r["key"]: float(r["value"]) for r in rows}
-
-    # Professional guard (recommended)
-    assert "duty_percent_10" in cfg, "Admin error: duty_percent_10 missing"
-
+    assert "duty_percent_10" in cfg
     return cfg
 
 def save_cfg(cfg):
@@ -82,7 +79,7 @@ def verify_login(u, p):
     return False, None
 
 # ============================================================
-# LIVE FX (market) + fallback
+# LIVE FX
 # ============================================================
 @st.cache_data(ttl=300)
 def get_gbp_rate():
@@ -107,7 +104,6 @@ def get_gbp_rate():
 st.set_page_config(page_title="Car Import Calculator", layout="centered")
 st.title("🚗 Car Import Calculator")
 
-# Login gate
 if "auth" not in st.session_state:
     st.session_state.auth = False
     st.session_state.role = ""
@@ -130,14 +126,13 @@ cfg = load_cfg()
 rate, rate_date, rate_src = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
 
-# Tabs
-tab_names = ["🇬🇧 UK", "🇯🇵 Japan"]
+tabs = ["🇬🇧 UK", "🇯🇵 Japan"]
 if is_admin:
-    tab_names.extend(["💰 Profit Tool", "⚙️ Admin"])
-tabs = st.tabs(tab_names)
+    tabs.extend(["💰 Profit Tool", "⚙️ Admin"])
+tabs = st.tabs(tabs)
 
 # ============================================================
-# 🇬🇧 UK TAB (FULL BREAKDOWN)
+# 🇬🇧 UK TAB
 # ============================================================
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} — updated {rate_date} ({rate_src})")
@@ -162,34 +157,23 @@ with tabs[0]:
             + cfg["port_charges"]
         )
 
-        total = cif + duty + vat + cy_fees
+        cost_net = cif + duty + cy_fees
+        total = cost_net + vat
 
-        # Store for profit tool
-        st.session_state.last_final_total = total
-        st.session_state.last_cy_vat = vat
+        st.session_state.last_cost_net = cost_net
 
         st.success(f"Final total: €{total:,.2f}")
 
         st.markdown("### 📊 Import breakdown")
-        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
-        st.write(f"Transport EUR: €{transport_eur:,.2f}")
-        st.write(f"Insurance: €{insurance:,.2f}")
         st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty (10%): €{duty:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
         st.write(f"Cyprus VAT: €{vat:,.2f}")
 
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"Total Cyprus fees: €{cy_fees:,.2f}")
 
 # ============================================================
-# 🇯🇵 JAPAN TAB (FULL BREAKDOWN)
+# 🇯🇵 JAPAN TAB
 # ============================================================
 with tabs[1]:
     purchase = nz(st.number_input("Purchase (EUR)", value=None))
@@ -209,95 +193,33 @@ with tabs[1]:
             + cfg["port_charges"] + cfg["sva_japan"]
         )
 
-        total = cif + duty + vat + cy_fees
+        cost_net = cif + duty + cy_fees
+        total = cost_net + vat
 
-        # Store for profit tool
-        st.session_state.last_final_total = total
-        st.session_state.last_cy_vat = vat
+        st.session_state.last_cost_net = cost_net
 
         st.success(f"Final total: €{total:,.2f}")
 
         st.markdown("### 📊 Import breakdown")
         st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty ({duty_rate}%): €{duty:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
         st.write(f"Cyprus VAT: €{vat:,.2f}")
 
         st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
-        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
+        st.write(f"Total Cyprus fees: €{cy_fees:,.2f}")
 
 # ============================================================
-# 💰 PROFIT TOOL (ADMIN ONLY)
+# 💰 PROFIT TOOL
 # ============================================================
 if is_admin:
     with tabs[2]:
         st.subheader("💰 Profit Calculator (Admin only)")
 
-        if "last_final_total" not in st.session_state:
+        if "last_cost_net" not in st.session_state:
             st.info("Run a UK or Japan calculation first.")
         else:
-            final_total = st.session_state.last_final_total
-            cy_vat = st.session_state.last_cy_vat
-
-            # Your rule: cost = final total - Cyprus VAT
-            cost_net = final_total - cy_vat
-
+            cost_net = st.session_state.last_cost_net
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
-
-            st.divider()
-
-            # -----------------------------
-            # Target profit → selling price
-            # -----------------------------
-            target_profit = st.number_input(
-                "Target profit (€)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 3000"
-            )
-
-            if target_profit is not None:
-                net_sale = cost_net + target_profit
-                selling_price = net_sale * 1.19
-                vat_on_sale = selling_price * 19 / 119
-
-                st.success(
-                    f"To make **€{target_profit:,.2f}** profit:\n\n"
-                    f"• Sell price (VAT incl): **€{selling_price:,.2f}**\n\n"
-                    f"• VAT on sale: **€{vat_on_sale:,.2f}**"
-                )
-
-            st.divider()
-
-            # -----------------------------
-            # Manual selling price → profit
-            # -----------------------------
-            manual_sell = st.number_input(
-                "Manual selling price (VAT incl €)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 15000"
-            )
-
-            if manual_sell is not None:
-                vat_on_sale = manual_sell * 19 / 119
-                net_sale = manual_sell - vat_on_sale
-                profit = net_sale - cost_net
-
-                st.info(
-                    f"At selling price **€{manual_sell:,.2f}**:\n\n"
-                    f"• VAT payable: **€{vat_on_sale:,.2f}**\n\n"
-                    f"• Net sale: **€{net_sale:,.2f}**\n\n"
-                    f"• **Profit: €{profit:,.2f}**"
-                )
-
 
 # ============================================================
 # ⚙️ ADMIN SETTINGS
@@ -306,13 +228,7 @@ if is_admin:
     with tabs[3]:
         cfg_edit = dict(cfg)
         for k in cfg_edit:
-            label = k.replace("_", " ").title()
-            if k == "duty_percent_10":
-                label = "Duty Percent (10)"
-            if k == "duty_percent_5":
-                label = "Duty Percent (5)"
-            cfg_edit[k] = st.number_input(label, value=float(cfg_edit[k]))
-
+            cfg_edit[k] = st.number_input(k.replace("_", " ").title(), value=float(cfg_edit[k]))
         if st.button("Save settings", use_container_width=True):
             save_cfg(cfg_edit)
             st.cache_data.clear()
