@@ -198,16 +198,7 @@ with tabs[0]:
         }
 
         cy_total = sum(cy_items.values())
-
-        # ✅ CORRECT NET COST (NO CY VAT)
-        cost_net = cif + duty + cy_total + extras
-
-        total = cost_net + vat
-
-        # store for later use
-        st.session_state.last_cost_net = cost_net
-        st.session_state.last_vat = vat
-        st.session_state.last_total = total
+        total = cif + duty + vat + cy_total + extras
 
         st.success(f"Final total: €{total:,.2f}")
 
@@ -251,14 +242,7 @@ with tabs[1]:
         }
 
         cy_total = sum(cy_items.values())
-
-        # ✅ CORRECT NET COST (NO CY VAT)
-        cost_net = cif + duty + cy_total + extras
-        total = cost_net + vat
-
-        st.session_state.last_cost_net = cost_net
-        st.session_state.last_vat = vat
-        st.session_state.last_total = total
+        total = cif + duty + vat + cy_total + extras
 
         st.success(f"Final total: €{total:,.2f}")
 
