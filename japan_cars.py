@@ -26,10 +26,8 @@ users_sheet = book.worksheet("users")
 def nz(v):
     return float(v) if v not in (None, "") else 0.0
 
-
 def to_bool(v):
     return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
-
 
 # ============================================================
 # Config from Google Sheets
@@ -37,12 +35,8 @@ def to_bool(v):
 def load_cfg():
     rows = cfg_sheet.get_all_records()
     cfg = {r["key"]: float(r["value"]) for r in rows}
-
-    # Professional guard (recommended)
     assert "duty_percent_10" in cfg, "Admin error: duty_percent_10 missing"
-
     return cfg
-
 
 def save_cfg(cfg):
     data = cfg_sheet.get_all_values()
@@ -54,15 +48,12 @@ def save_cfg(cfg):
     for i, row in enumerate(data[1:], start=2):
         k = row[key_col]
         if k in cfg:
-            updates.append(
-                {
-                    "range": gspread.utils.rowcol_to_a1(i, val_col + 1),
-                    "values": [[str(cfg[k])]],
-                }
-            )
+            updates.append({
+                "range": gspread.utils.rowcol_to_a1(i, val_col + 1),
+                "values": [[str(cfg[k])]],
+            })
     if updates:
         cfg_sheet.batch_update(updates)
-
 
 # ============================================================
 # Users / Login
@@ -79,7 +70,6 @@ def load_users():
         }
     return users
 
-
 def verify_login(u, p):
     users = load_users()
     if u not in users or not users[u]["active"]:
@@ -88,9 +78,8 @@ def verify_login(u, p):
         return True, users[u]["role"]
     return False, None
 
-
 # ============================================================
-# LIVE FX (market) + fallback
+# LIVE FX
 # ============================================================
 @st.cache_data(ttl=300)
 def get_gbp_rate():
@@ -102,15 +91,12 @@ def get_gbp_rate():
         )
         data = r.json()
         return round(data["rates"]["EUR"], 4), data["date"], "Market"
-    except Exception:
-        r = requests.get(
-            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", timeout=8
-        )
+    except:
+        r = requests.get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", timeout=8)
         tree = ET.fromstring(r.content)
         gbp = float(tree.find(".//{*}Cube[@currency='GBP']").attrib["rate"])
         date = tree.find(".//{*}Cube[@time]").attrib["time"]
         return round(1 / gbp, 4), date, "ECB"
-
 
 # ============================================================
 # UI
@@ -138,25 +124,17 @@ if not st.session_state.auth:
     st.stop()
 
 cfg = load_cfg()
-
-# ============================================================
-# Cyprus fees by origin (IMPORTANT)
-# ============================================================
-cy_fees_uk = (
-    cfg["mot"]
-    + cfg["plates"]
-    + cfg["road_tax"]
-    + cfg["registration"]
-    + cfg["certifying_officer"]
-    + cfg["service"]
-    + cfg["customs_agent"]
-    + cfg["port_charges"]
-)
-
-cy_fees_japan = cy_fees_uk + cfg["sva_japan"]
-
 rate, rate_date, rate_src = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
+
+# Cyprus fees
+cy_fees_uk = (
+    cfg["mot"] + cfg["plates"] + cfg["road_tax"] +
+    cfg["registration"] + cfg["certifying_officer"] +
+    cfg["service"] + cfg["customs_agent"] +
+    cfg["port_charges"]
+)
+cy_fees_japan = cy_fees_uk + cfg["sva_japan"]
 
 # Tabs
 tab_names = ["🇬🇧 UK", "🇯🇵 Japan"]
@@ -165,7 +143,7 @@ if is_admin:
 tabs = st.tabs(tab_names)
 
 # ============================================================
-# 🇬🇧 UK TAB (FULL BREAKDOWN)
+# 🇬🇧 UK TAB
 # ============================================================
 with tabs[0]:
     st.caption(f"GBP → EUR: {rate} — updated {rate_date} ({rate_src})")
@@ -183,46 +161,16 @@ with tabs[0]:
         duty = cif * cfg["duty_percent_10"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        # NOTE: leaving this as-is (no logic change requested), even though unused:
-        cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
-            + cfg["port_charges"]
-        )
-
         total = cif + duty + vat + cy_fees_uk
 
-        # Store for profit tool
         st.session_state.last_final_total = total
         st.session_state.last_cy_vat = vat
+        st.session_state.last_cy_fees = cy_fees_uk
 
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
-        st.write(f"Transport EUR: €{transport_eur:,.2f}")
-        st.write(f"Insurance: €{insurance:,.2f}")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty (10%): €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
-
 # ============================================================
-# 🇯🇵 JAPAN TAB (FULL BREAKDOWN)
+# 🇯🇵 JAPAN TAB
 # ============================================================
 with tabs[1]:
     purchase = nz(st.number_input("Purchase (EUR)", value=None))
@@ -235,42 +183,13 @@ with tabs[1]:
         duty = cif * duty_rate / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
-        # NOTE: leaving this as-is (no logic change requested), even though unused:
-        cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
-            + cfg["port_charges"]
-            + cfg["sva_japan"]
-        )
-
         total = cif + duty + vat + cy_fees_japan
 
-        # Store for profit tool
         st.session_state.last_final_total = total
         st.session_state.last_cy_vat = vat
+        st.session_state.last_cy_fees = cy_fees_japan
 
         st.success(f"Final total: €{total:,.2f}")
-
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty ({duty_rate}%): €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
-        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
 
 # ============================================================
 # 💰 PROFIT TOOL (ADMIN ONLY)
@@ -284,57 +203,20 @@ if is_admin:
         else:
             final_total = st.session_state.last_final_total
             cy_vat = st.session_state.last_cy_vat
+            cy_fees = st.session_state.last_cy_fees
 
-            # Your rule: cost = final total - Cyprus VAT
-            cost_net = final_total - cy_vat
+            cost_net = (final_total - cy_vat) + cy_fees
 
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
 
-            st.divider()
-
-            # -----------------------------
-            # Target profit → selling price
-            # -----------------------------
-            target_profit = st.number_input(
-                "Target profit (€)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 3000",
-            )
-
+            target_profit = st.number_input("Target profit (€)", value=None, step=500.0)
             if target_profit is not None:
-                net_sale = cost_net + target_profit
-                selling_price = net_sale * 1.19
-                vat_on_sale = selling_price * 19 / 119
-
+                sell_price = (cost_net + target_profit) * 1.19
+                vat_sale = sell_price * 19 / 119
                 st.success(
-                    f"To make **€{target_profit:,.2f}** profit:\n\n"
-                    f"• Sell price (VAT incl): **€{selling_price:,.2f}**\n\n"
-                    f"• VAT on sale: **€{vat_on_sale:,.2f}**"
-                )
-
-            st.divider()
-
-            # -----------------------------
-            # Manual selling price → profit
-            # -----------------------------
-            manual_sell = st.number_input(
-                "Manual selling price (VAT incl €)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 15000",
-            )
-
-            if manual_sell is not None:
-                vat_on_sale = manual_sell * 19 / 119
-                net_sale = manual_sell - vat_on_sale
-                profit = net_sale - cost_net
-
-                st.info(
-                    f"At selling price **€{manual_sell:,.2f}**:\n\n"
-                    f"• VAT payable: **€{vat_on_sale:,.2f}**\n\n"
-                    f"• Net sale: **€{net_sale:,.2f}**\n\n"
-                    f"• **Profit: €{profit:,.2f}**"
+                    f"To make €{target_profit:,.2f} profit:\n\n"
+                    f"• Sell price (VAT incl): €{sell_price:,.2f}\n\n"
+                    f"• VAT on sale: €{vat_sale:,.2f}"
                 )
 
 # ============================================================
@@ -345,10 +227,6 @@ if is_admin:
         cfg_edit = dict(cfg)
         for k in cfg_edit:
             label = k.replace("_", " ").title()
-            if k == "duty_percent_10":
-                label = "Duty Percent (10)"
-            if k == "duty_percent_5":
-                label = "Duty Percent (5)"
             cfg_edit[k] = st.number_input(label, value=float(cfg_edit[k]))
 
         if st.button("Save settings", use_container_width=True):
@@ -362,5 +240,5 @@ if is_admin:
 # ============================================================
 st.markdown(
     "<hr><center>© 2025 Ioannis Papaiacovou. All rights reserved.</center>",
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
