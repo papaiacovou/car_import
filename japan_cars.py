@@ -94,7 +94,7 @@ def get_gbp_rate():
     except:
         r = requests.get(
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
-            timeout=8,
+            timeout=8
         )
         tree = ET.fromstring(r.content)
         gbp = float(tree.find(".//{*}Cube[@currency='GBP']").attrib["rate"])
@@ -155,13 +155,9 @@ with tabs[0]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
+            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
+            + cfg["registration"] + cfg["certifying_officer"]
+            + cfg["service"] + cfg["customs_agent"]
             + cfg["port_charges"]
         )
 
@@ -174,9 +170,22 @@ with tabs[0]:
         st.success(f"Final total: €{total:,.2f}")
 
         st.markdown("### 📊 Import breakdown")
+        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
+        st.write(f"Transport EUR: €{transport_eur:,.2f}")
+        st.write(f"Insurance: €{insurance:,.2f}")
         st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
+        st.write(f"Duty (10%): €{duty:,.2f}")
         st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
 
 # ============================================================
 # 🇯🇵 JAPAN TAB
@@ -193,15 +202,10 @@ with tabs[1]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"]
-            + cfg["plates"]
-            + cfg["road_tax"]
-            + cfg["registration"]
-            + cfg["certifying_officer"]
-            + cfg["service"]
-            + cfg["customs_agent"]
-            + cfg["port_charges"]
-            + cfg["sva_japan"]
+            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
+            + cfg["registration"] + cfg["certifying_officer"]
+            + cfg["service"] + cfg["customs_agent"]
+            + cfg["port_charges"] + cfg["sva_japan"]
         )
 
         total = cif + duty + vat + cy_fees
@@ -211,6 +215,22 @@ with tabs[1]:
         st.session_state.last_origin = "JP"
 
         st.success(f"Final total: €{total:,.2f}")
+
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty ({duty_rate}%): €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
 
 # ============================================================
 # 💰 PROFIT TOOL
@@ -228,13 +248,9 @@ if is_admin:
             cost_net = final_total - cy_vat
 
             cyprus_fees = (
-                cfg["mot"]
-                + cfg["plates"]
-                + cfg["road_tax"]
-                + cfg["registration"]
-                + cfg["certifying_officer"]
-                + cfg["service"]
-                + cfg["customs_agent"]
+                cfg["mot"] + cfg["plates"] + cfg["road_tax"]
+                + cfg["registration"] + cfg["certifying_officer"]
+                + cfg["service"] + cfg["customs_agent"]
                 + cfg["port_charges"]
             )
 
