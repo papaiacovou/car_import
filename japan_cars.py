@@ -266,10 +266,13 @@ if is_admin:
             st.divider()
 
             target_profit = st.number_input(
-                "Target profit (€)",
-                step=500.0,
-                key="target_profit",
-            )
+    "Target profit (€)",
+    value=None,
+    step=500.0,
+    placeholder="e.g. 3000",
+    key="target_profit",
+)
+
 
             if target_profit:
                 selling_price = (cost_net + target_profit) * 1.19
@@ -281,11 +284,7 @@ if is_admin:
 
             st.divider()
 
-            manual_sell = st.number_input(
-                "Manual selling price (VAT incl €)",
-                step=500.0,
-                key="manual_sell",
-            )
+           manual_sell = st.number_input(
 
             if manual_sell:
                 vat_on_sale = manual_sell * 19 / 119
