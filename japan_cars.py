@@ -272,12 +272,14 @@ if is_admin:
             # -----------------------------
             # 1️⃣ Target profit → selling price
             # -----------------------------
-            target_profit = st.number_input(
-                "Target profit (€)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 3000"
-            )
+           manual_sell = st.number_input(
+    "Manual selling price (VAT incl €)",
+    value=None,
+    step=500.0,
+    placeholder="e.g. 15000",
+    key="manual_sell"
+)
+
 
             if target_profit is not None:
                 net_sale = cost_net + target_profit
@@ -314,6 +316,19 @@ if is_admin:
                     f"• **Profit: €{profit:,.2f}**"
                 )
 
+st.divider()
+
+if st.button("🔄 Reset Profit Tool", use_container_width=True):
+    # Clear calculation state
+    st.session_state.pop("last_final_total", None)
+    st.session_state.pop("last_cy_vat", None)
+    st.session_state.pop("last_origin", None)
+
+    # Clear input fields
+    st.session_state.pop("target_profit", None)
+    st.session_state.pop("manual_sell", None)
+
+    st.rerun()
 
 # ============================================================
 # ⚙️ ADMIN
