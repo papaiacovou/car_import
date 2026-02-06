@@ -233,7 +233,7 @@ with tabs[1]:
         st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
 
 # ============================================================
-# 💰 PROFIT TOOL (INDENTATION FIX ONLY)
+# 💰 PROFIT TOOL (ADMIN ONLY)
 # ============================================================
 if is_admin:
     with tabs[2]:
@@ -245,8 +245,10 @@ if is_admin:
             final_total = st.session_state.last_final_total
             cy_vat = st.session_state.last_cy_vat
 
+            # Base cost (final total minus CY VAT)
             cost_net = final_total - cy_vat
 
+            # Cyprus fees
             cyprus_fees = (
                 cfg["mot"]
                 + cfg["plates"]
@@ -264,6 +266,54 @@ if is_admin:
             cost_net += cyprus_fees
 
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
+
+            st.divider()
+
+            # -----------------------------
+            # 1️⃣ Target profit → selling price
+            # -----------------------------
+            target_profit = st.number_input(
+                "Target profit (€)",
+                value=None,
+                step=500.0,
+                placeholder="e.g. 3000"
+            )
+
+            if target_profit is not None:
+                net_sale = cost_net + target_profit
+                selling_price = net_sale * 1.19
+                vat_on_sale = selling_price * 19 / 119
+
+                st.success(
+                    f"To make **€{target_profit:,.2f}** profit:\n\n"
+                    f"• Sell price (VAT incl): **€{selling_price:,.2f}**\n\n"
+                    f"• VAT on sale: **€{vat_on_sale:,.2f}**"
+                )
+
+            st.divider()
+
+            # -----------------------------
+            # 2️⃣ Manual selling price → profit
+            # -----------------------------
+            manual_sell = st.number_input(
+                "Manual selling price (VAT incl €)",
+                value=None,
+                step=500.0,
+                placeholder="e.g. 15000"
+            )
+
+            if manual_sell is not None:
+                vat_on_sale = manual_sell * 19 / 119
+                net_sale = manual_sell - vat_on_sale
+                profit = net_sale - cost_net
+
+                st.info(
+                    f"At selling price **€{manual_sell:,.2f}**:\n\n"
+                    f"• VAT payable: **€{vat_on_sale:,.2f}**\n\n"
+                    f"• Net sale: **€{net_sale:,.2f}**\n\n"
+                    f"• **Profit: €{profit:,.2f}**"
+                )
+
 
 # ============================================================
 # ⚙️ ADMIN
