@@ -243,11 +243,13 @@ if is_admin:
         if "last_final_total" not in st.session_state:
             st.info("Run a UK or Japan calculation first.")
         else:
-            final_total = st.session_state.last_final_total
-            cy_vat = st.session_state.last_cy_vat
+            cost_net = st.session_state.last_cost_net
+country = st.session_state.last_country
 
-            # Your rule: cost = final total - Cyprus VAT
-            cost_net = final_total - cy_vat
+st.write(
+    f"**Car cost (net of CY VAT – {country} import): €{cost_net:,.2f}**"
+)
+
 
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
 
