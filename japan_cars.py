@@ -26,8 +26,10 @@ users_sheet = book.worksheet("users")
 def nz(v):
     return float(v) if v not in (None, "") else 0.0
 
+
 def to_bool(v):
     return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
+
 
 # ============================================================
 # Config from Google Sheets
@@ -41,6 +43,7 @@ def load_cfg():
 
     return cfg
 
+
 def save_cfg(cfg):
     data = cfg_sheet.get_all_values()
     headers = [h.lower() for h in data[0]]
@@ -51,12 +54,15 @@ def save_cfg(cfg):
     for i, row in enumerate(data[1:], start=2):
         k = row[key_col]
         if k in cfg:
-            updates.append({
-                "range": gspread.utils.rowcol_to_a1(i, val_col + 1),
-                "values": [[str(cfg[k])]],
-            })
+            updates.append(
+                {
+                    "range": gspread.utils.rowcol_to_a1(i, val_col + 1),
+                    "values": [[str(cfg[k])]],
+                }
+            )
     if updates:
         cfg_sheet.batch_update(updates)
+
 
 # ============================================================
 # Users / Login
@@ -73,6 +79,7 @@ def load_users():
         }
     return users
 
+
 def verify_login(u, p):
     users = load_users()
     if u not in users or not users[u]["active"]:
@@ -80,6 +87,7 @@ def verify_login(u, p):
     if bcrypt.checkpw(p.encode(), users[u]["hash"].encode()):
         return True, users[u]["role"]
     return False, None
+
 
 # ============================================================
 # LIVE FX (market) + fallback
@@ -94,12 +102,15 @@ def get_gbp_rate():
         )
         data = r.json()
         return round(data["rates"]["EUR"], 4), data["date"], "Market"
-    except:
-        r = requests.get("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", timeout=8)
+    except Exception:
+        r = requests.get(
+            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", timeout=8
+        )
         tree = ET.fromstring(r.content)
         gbp = float(tree.find(".//{*}Cube[@currency='GBP']").attrib["rate"])
         date = tree.find(".//{*}Cube[@time]").attrib["time"]
         return round(1 / gbp, 4), date, "ECB"
+
 
 # ============================================================
 # UI
@@ -127,6 +138,23 @@ if not st.session_state.auth:
     st.stop()
 
 cfg = load_cfg()
+
+# ============================================================
+# Cyprus fees by origin (IMPORTANT)
+# ============================================================
+cy_fees_uk = (
+    cfg["mot"]
+    + cfg["plates"]
+    + cfg["road_tax"]
+    + cfg["registration"]
+    + cfg["certifying_officer"]
+    + cfg["service"]
+    + cfg["customs_agent"]
+    + cfg["port_charges"]
+)
+
+cy_fees_japan = cy_fees_uk + cfg["sva_japan"]
+
 rate, rate_date, rate_src = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
 
@@ -155,14 +183,19 @@ with tabs[0]:
         duty = cif * cfg["duty_percent_10"] / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
+        # NOTE: leaving this as-is (no logic change requested), even though unused:
         cy_fees = (
-            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
-            + cfg["registration"] + cfg["certifying_officer"]
-            + cfg["service"] + cfg["customs_agent"]
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
             + cfg["port_charges"]
         )
 
-        total = cif + duty + vat + cy_fees
+        total = cif + duty + vat + cy_fees_uk
 
         # Store for profit tool
         st.session_state.last_final_total = total
@@ -202,14 +235,20 @@ with tabs[1]:
         duty = cif * duty_rate / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
+        # NOTE: leaving this as-is (no logic change requested), even though unused:
         cy_fees = (
-            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
-            + cfg["registration"] + cfg["certifying_officer"]
-            + cfg["service"] + cfg["customs_agent"]
-            + cfg["port_charges"] + cfg["sva_japan"]
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
+            + cfg["port_charges"]
+            + cfg["sva_japan"]
         )
 
-        total = cif + duty + vat + cy_fees
+        total = cif + duty + vat + cy_fees_japan
 
         # Store for profit tool
         st.session_state.last_final_total = total
@@ -260,7 +299,7 @@ if is_admin:
                 "Target profit (€)",
                 value=None,
                 step=500.0,
-                placeholder="e.g. 3000"
+                placeholder="e.g. 3000",
             )
 
             if target_profit is not None:
@@ -283,7 +322,7 @@ if is_admin:
                 "Manual selling price (VAT incl €)",
                 value=None,
                 step=500.0,
-                placeholder="e.g. 15000"
+                placeholder="e.g. 15000",
             )
 
             if manual_sell is not None:
@@ -297,7 +336,6 @@ if is_admin:
                     f"• Net sale: **€{net_sale:,.2f}**\n\n"
                     f"• **Profit: €{profit:,.2f}**"
                 )
-
 
 # ============================================================
 # ⚙️ ADMIN SETTINGS
@@ -324,5 +362,5 @@ if is_admin:
 # ============================================================
 st.markdown(
     "<hr><center>© 2025 Ioannis Papaiacovou. All rights reserved.</center>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
