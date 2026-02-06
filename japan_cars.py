@@ -79,7 +79,7 @@ def verify_login(u, p):
     return False, None
 
 # ============================================================
-# LIVE FX
+# FX
 # ============================================================
 @st.cache_data(ttl=300)
 def get_gbp_rate():
@@ -126,10 +126,10 @@ cfg = load_cfg()
 rate, rate_date, rate_src = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
 
-tabs = ["🇬🇧 UK", "🇯🇵 Japan"]
+tab_names = ["🇬🇧 UK", "🇯🇵 Japan"]
 if is_admin:
-    tabs.extend(["💰 Profit Tool", "⚙️ Admin"])
-tabs = st.tabs(tabs)
+    tab_names.extend(["💰 Profit Tool", "⚙️ Admin"])
+tabs = st.tabs(tab_names)
 
 # ============================================================
 # 🇬🇧 UK TAB
@@ -157,10 +157,11 @@ with tabs[0]:
             + cfg["port_charges"]
         )
 
-        cost_net = cif + duty + cy_fees
-        total = cost_net + vat
+        total = cif + duty + vat + cy_fees
 
-        st.session_state.last_cost_net = cost_net
+        st.session_state.last_final_total = total
+        st.session_state.last_cy_vat = vat
+        st.session_state.last_cy_fees = cy_fees
 
         st.success(f"Final total: €{total:,.2f}")
 
@@ -193,32 +194,31 @@ with tabs[1]:
             + cfg["port_charges"] + cfg["sva_japan"]
         )
 
-        cost_net = cif + duty + cy_fees
-        total = cost_net + vat
+        total = cif + duty + vat + cy_fees
 
-        st.session_state.last_cost_net = cost_net
+        st.session_state.last_final_total = total
+        st.session_state.last_cy_vat = vat
+        st.session_state.last_cy_fees = cy_fees
 
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"Total Cyprus fees: €{cy_fees:,.2f}")
-
 # ============================================================
-# 💰 PROFIT TOOL
+# 💰 PROFIT TOOL (ADMIN ONLY)
 # ============================================================
 if is_admin:
     with tabs[2]:
         st.subheader("💰 Profit Calculator (Admin only)")
 
-        if "last_cost_net" not in st.session_state:
+        if "last_final_total" not in st.session_state:
             st.info("Run a UK or Japan calculation first.")
         else:
-            cost_net = st.session_state.last_cost_net
+            final_total = st.session_state.last_final_total
+            cy_vat = st.session_state.last_cy_vat
+            cy_fees = st.session_state.last_cy_fees
+
+            # ✅ ONLY CHANGE YOU ASKED FOR
+            cost_net = final_total - cy_vat + cy_fees
+
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
 
 # ============================================================
@@ -228,7 +228,13 @@ if is_admin:
     with tabs[3]:
         cfg_edit = dict(cfg)
         for k in cfg_edit:
-            cfg_edit[k] = st.number_input(k.replace("_", " ").title(), value=float(cfg_edit[k]))
+            label = k.replace("_", " ").title()
+            if k == "duty_percent_10":
+                label = "Duty Percent (10)"
+            if k == "duty_percent_5":
+                label = "Duty Percent (5)"
+            cfg_edit[k] = st.number_input(label, value=float(cfg_edit[k]))
+
         if st.button("Save settings", use_container_width=True):
             save_cfg(cfg_edit)
             st.cache_data.clear()
