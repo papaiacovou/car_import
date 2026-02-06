@@ -240,18 +240,15 @@ if is_admin:
     with tabs[2]:
         st.subheader("💰 Profit Calculator (Admin only)")
 
-        if "last_final_total" not in st.session_state:
+        if "last_cost_net" not in st.session_state:
             st.info("Run a UK or Japan calculation first.")
         else:
             cost_net = st.session_state.last_cost_net
-country = st.session_state.last_country
+            country = st.session_state.last_country
 
-st.write(
-    f"**Car cost (net of CY VAT – {country} import): €{cost_net:,.2f}**"
-)
-
-
-            st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
+            st.write(
+                f"**Car cost (net of CY VAT – {country} import): €{cost_net:,.2f}**"
+            )
 
             st.divider()
 
@@ -299,6 +296,7 @@ st.write(
                     f"• Net sale: **€{net_sale:,.2f}**\n\n"
                     f"• **Profit: €{profit:,.2f}**"
                 )
+
 
 
 # ============================================================
