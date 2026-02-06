@@ -79,7 +79,7 @@ def verify_login(u, p):
     return False, None
 
 # ============================================================
-# LIVE FX
+# FX
 # ============================================================
 @st.cache_data(ttl=300)
 def get_gbp_rate():
@@ -130,11 +130,10 @@ cfg = load_cfg()
 rate, rate_date, rate_src = get_gbp_rate()
 is_admin = st.session_state.role == "admin"
 
-# Tabs
-tab_names = ["🇬🇧 UK", "🇯🇵 Japan"]
+tabs = ["🇬🇧 UK", "🇯🇵 Japan"]
 if is_admin:
-    tab_names.extend(["💰 Profit Tool", "⚙️ Admin"])
-tabs = st.tabs(tab_names)
+    tabs.extend(["💰 Profit Tool", "⚙️ Admin"])
+tabs = st.tabs(tabs)
 
 # ============================================================
 # 🇬🇧 UK TAB
@@ -170,6 +169,24 @@ with tabs[0]:
 
         st.success(f"Final total: €{total:,.2f}")
 
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
+        st.write(f"Transport EUR: €{transport_eur:,.2f}")
+        st.write(f"Insurance: €{insurance:,.2f}")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+
 # ============================================================
 # 🇯🇵 JAPAN TAB
 # ============================================================
@@ -199,8 +216,24 @@ with tabs[1]:
 
         st.success(f"Final total: €{total:,.2f}")
 
+        st.markdown("### 📊 Import breakdown")
+        st.write(f"CIF: €{cif:,.2f}")
+        st.write(f"Duty: €{duty:,.2f}")
+        st.write(f"Cyprus VAT: €{vat:,.2f}")
+
+        st.markdown("### 🇨🇾 Cyprus fees")
+        st.write(f"MOT: €{cfg['mot']:,.2f}")
+        st.write(f"Plates: €{cfg['plates']:,.2f}")
+        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
+        st.write(f"Registration: €{cfg['registration']:,.2f}")
+        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
+        st.write(f"Service: €{cfg['service']:,.2f}")
+        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
+        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
+        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
+
 # ============================================================
-# 💰 PROFIT TOOL (FIXED INDENTATION ONLY)
+# 💰 PROFIT TOOL (INDENTATION FIX ONLY)
 # ============================================================
 if is_admin:
     with tabs[2]:
@@ -233,7 +266,7 @@ if is_admin:
             st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
 
 # ============================================================
-# ⚙️ ADMIN SETTINGS
+# ⚙️ ADMIN
 # ============================================================
 if is_admin:
     with tabs[3]:
