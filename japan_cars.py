@@ -105,16 +105,7 @@ def get_gbp_rate():
 # UI
 # ============================================================
 st.set_page_config(page_title="Car Import Calculator", layout="centered")
-col_title, col_logout = st.columns([8, 1])
 
-with col_title:
-    st.title("🚗 Car Import Calculator")
-
-with col_logout:
-    if st.session_state.get("auth"):
-        if st.button("🚪 Logout"):
-            st.session_state.clear()
-            st.rerun()
 
 
 # Login gate
