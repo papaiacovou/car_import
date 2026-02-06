@@ -142,8 +142,9 @@ is_admin = st.session_state.role == "admin"
 
 tabs = ["🇬🇧 UK", "🇯🇵 Japan"]
 if is_admin:
-    tabs.extend(["💰 Profit Tool", "⚙️ Admin"])
+    tabs.extend(["💰 Profit Tool", "⚙️ Admin", "🚪 Logout"])
 tabs = st.tabs(tabs)
+
 
 # ============================================================
 # 🇬🇧 UK TAB
@@ -331,6 +332,18 @@ if is_admin:
             st.cache_data.clear()
             st.success("Saved permanently")
             st.rerun()
+
+# ============================================================
+# 🚪 LOGOUT TAB
+# ============================================================
+if is_admin:
+    with tabs[4]:
+        st.warning("You are about to log out.")
+
+        if st.button("Confirm Logout", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+
 
 # ============================================================
 # Footer
