@@ -94,7 +94,7 @@ def get_gbp_rate():
     except:
         r = requests.get(
             "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
-            timeout=8
+            timeout=8,
         )
         tree = ET.fromstring(r.content)
         gbp = float(tree.find(".//{*}Cube[@currency='GBP']").attrib["rate"])
@@ -155,9 +155,13 @@ with tabs[0]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
-            + cfg["registration"] + cfg["certifying_officer"]
-            + cfg["service"] + cfg["customs_agent"]
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
             + cfg["port_charges"]
         )
 
@@ -170,22 +174,9 @@ with tabs[0]:
         st.success(f"Final total: €{total:,.2f}")
 
         st.markdown("### 📊 Import breakdown")
-        st.write(f"Purchase EUR (incl UK VAT): €{purchase_eur:,.2f}")
-        st.write(f"Transport EUR: €{transport_eur:,.2f}")
-        st.write(f"Insurance: €{insurance:,.2f}")
         st.write(f"CIF: €{cif:,.2f}")
         st.write(f"Duty: €{duty:,.2f}")
         st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
 
 # ============================================================
 # 🇯🇵 JAPAN TAB
@@ -202,10 +193,15 @@ with tabs[1]:
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
         cy_fees = (
-            cfg["mot"] + cfg["plates"] + cfg["road_tax"]
-            + cfg["registration"] + cfg["certifying_officer"]
-            + cfg["service"] + cfg["customs_agent"]
-            + cfg["port_charges"] + cfg["sva_japan"]
+            cfg["mot"]
+            + cfg["plates"]
+            + cfg["road_tax"]
+            + cfg["registration"]
+            + cfg["certifying_officer"]
+            + cfg["service"]
+            + cfg["customs_agent"]
+            + cfg["port_charges"]
+            + cfg["sva_japan"]
         )
 
         total = cif + duty + vat + cy_fees
@@ -216,24 +212,8 @@ with tabs[1]:
 
         st.success(f"Final total: €{total:,.2f}")
 
-        st.markdown("### 📊 Import breakdown")
-        st.write(f"CIF: €{cif:,.2f}")
-        st.write(f"Duty: €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
-        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
-
 # ============================================================
-# 💰 PROFIT TOOL (ADMIN ONLY)
+# 💰 PROFIT TOOL
 # ============================================================
 if is_admin:
     with tabs[2]:
@@ -245,10 +225,8 @@ if is_admin:
             final_total = st.session_state.last_final_total
             cy_vat = st.session_state.last_cy_vat
 
-            # Base cost (final total minus CY VAT)
             cost_net = final_total - cy_vat
 
-            # Cyprus fees
             cyprus_fees = (
                 cfg["mot"]
                 + cfg["plates"]
@@ -269,66 +247,46 @@ if is_admin:
 
             st.divider()
 
-            # -----------------------------
-            # 1️⃣ Target profit → selling price
-            # -----------------------------
-           manual_sell = st.number_input(
-    "Manual selling price (VAT incl €)",
-    value=None,
-    step=500.0,
-    placeholder="e.g. 15000",
-    key="manual_sell"
-)
+            target_profit = st.number_input(
+                "Target profit (€)",
+                step=500.0,
+                key="target_profit",
+            )
 
-
-            if target_profit is not None:
-                net_sale = cost_net + target_profit
-                selling_price = net_sale * 1.19
+            if target_profit:
+                selling_price = (cost_net + target_profit) * 1.19
                 vat_on_sale = selling_price * 19 / 119
-
                 st.success(
-                    f"To make **€{target_profit:,.2f}** profit:\n\n"
-                    f"• Sell price (VAT incl): **€{selling_price:,.2f}**\n\n"
-                    f"• VAT on sale: **€{vat_on_sale:,.2f}**"
+                    f"Sell price (VAT incl): €{selling_price:,.2f}\n\n"
+                    f"VAT on sale: €{vat_on_sale:,.2f}"
                 )
 
             st.divider()
 
-            # -----------------------------
-            # 2️⃣ Manual selling price → profit
-            # -----------------------------
             manual_sell = st.number_input(
                 "Manual selling price (VAT incl €)",
-                value=None,
                 step=500.0,
-                placeholder="e.g. 15000"
+                key="manual_sell",
             )
 
-            if manual_sell is not None:
+            if manual_sell:
                 vat_on_sale = manual_sell * 19 / 119
                 net_sale = manual_sell - vat_on_sale
                 profit = net_sale - cost_net
+                st.info(f"Profit: €{profit:,.2f}")
 
-                st.info(
-                    f"At selling price **€{manual_sell:,.2f}**:\n\n"
-                    f"• VAT payable: **€{vat_on_sale:,.2f}**\n\n"
-                    f"• Net sale: **€{net_sale:,.2f}**\n\n"
-                    f"• **Profit: €{profit:,.2f}**"
-                )
+            st.divider()
 
-st.divider()
-
-if st.button("🔄 Reset Profit Tool", use_container_width=True):
-    # Clear calculation state
-    st.session_state.pop("last_final_total", None)
-    st.session_state.pop("last_cy_vat", None)
-    st.session_state.pop("last_origin", None)
-
-    # Clear input fields
-    st.session_state.pop("target_profit", None)
-    st.session_state.pop("manual_sell", None)
-
-    st.rerun()
+            if st.button("🔄 Reset Profit Tool", use_container_width=True):
+                for k in (
+                    "last_final_total",
+                    "last_cy_vat",
+                    "last_origin",
+                    "target_profit",
+                    "manual_sell",
+                ):
+                    st.session_state.pop(k, None)
+                st.rerun()
 
 # ============================================================
 # ⚙️ ADMIN
@@ -339,7 +297,7 @@ if is_admin:
         for k in cfg_edit:
             cfg_edit[k] = st.number_input(
                 k.replace("_", " ").title(),
-                value=float(cfg_edit[k])
+                value=float(cfg_edit[k]),
             )
 
         if st.button("Save settings", use_container_width=True):
