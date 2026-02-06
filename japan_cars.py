@@ -106,8 +106,6 @@ def get_gbp_rate():
 # ============================================================
 st.set_page_config(page_title="Car Import Calculator", layout="centered")
 
-
-
 # Login gate
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -135,7 +133,6 @@ tabs = ["🇬🇧 UK", "🇯🇵 Japan"]
 if is_admin:
     tabs.extend(["💰 Profit Tool", "⚙️ Admin", "🚪 Logout"])
 tabs = st.tabs(tabs)
-
 
 # ============================================================
 # 🇬🇧 UK TAB
@@ -266,13 +263,12 @@ if is_admin:
             st.divider()
 
             target_profit = st.number_input(
-    "Target profit (€)",
-    value=None,
-    step=500.0,
-    placeholder="e.g. 3000",
-    key="target_profit",
-)
-
+                "Target profit (€)",
+                value=None,
+                step=500.0,
+                placeholder="e.g. 3000",
+                key="target_profit",
+            )
 
             if target_profit:
                 selling_price = (cost_net + target_profit) * 1.19
@@ -284,7 +280,13 @@ if is_admin:
 
             st.divider()
 
-           manual_sell = st.number_input(
+            manual_sell = st.number_input(
+                "Manual selling price (VAT incl €)",
+                value=None,
+                step=500.0,
+                placeholder="e.g. 15000",
+                key="manual_sell",
+            )
 
             if manual_sell:
                 vat_on_sale = manual_sell * 19 / 119
@@ -324,16 +326,14 @@ if is_admin:
             st.rerun()
 
 # ============================================================
-# 🚪 LOGOUT TAB
+# 🚪 LOGOUT
 # ============================================================
 if is_admin:
     with tabs[4]:
         st.warning("You are about to log out.")
-
         if st.button("Confirm Logout", use_container_width=True):
             st.session_state.clear()
             st.rerun()
-
 
 # ============================================================
 # Footer
