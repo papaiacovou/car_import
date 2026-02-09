@@ -244,7 +244,7 @@ if is_admin:
             final_total = st.session_state.last_final_total
             cy_vat = st.session_state.last_cy_vat
 
-            cost_net = final_total - cy_vat
+            cost_net = final_total 
 
             cyprus_fees = (
                 cfg["mot"] + cfg["plates"] + cfg["road_tax"]
