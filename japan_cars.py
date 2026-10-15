@@ -192,11 +192,16 @@ with tabs[0]:
 with tabs[1]:
     purchase = nz(st.number_input("Purchase (EUR)", value=None))
     shipping = nz(st.number_input("Shipping (EUR)", value=None))
-    duty_choice = st.radio("Duty rate", ["10%", "5%"], horizontal=True)
+    duty_choice = st.radio("Duty rate", ["10%", "5%", "0%"], horizontal=True)
 
     if st.button("Calculate Japan", use_container_width=True):
         cif = purchase + shipping
-        duty_rate = cfg["duty_percent_5"] if duty_choice == "5%" else cfg["duty_percent_10"]
+        if duty_choice == "0%":
+            duty_rate = 0.0
+        elif duty_choice == "5%":
+            duty_rate = cfg["duty_percent_5"]
+        else:
+            duty_rate = cfg["duty_percent_10"]
         duty = cif * duty_rate / 100
         vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
