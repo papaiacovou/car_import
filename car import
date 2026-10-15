@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
@@ -28,18 +27,15 @@ def to_float(v):
     except:
         return 0.0
 
-
 def load_config():
     if not os.path.exists(CONFIG_FILE):
         save_config(DEFAULT_CONFIG)
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def save_config(cfg):
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
-
 
 # ---------------------------
 # TOM BY WEIGHT
@@ -55,13 +51,11 @@ TOM_BY_WEIGHT = [
     (3301, 3500, 550),
 ]
 
-
 def calculate_tom(weight):
     for a, b, fee in TOM_BY_WEIGHT:
         if a <= weight <= b:
             return fee
     return 0
-
 
 # ---------------------------
 # FX RATE
@@ -74,29 +68,17 @@ def get_gbp_rate():
             timeout=5
         )
         tree = ET.fromstring(r.content)
-        ns = {
-            "d": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"
-        }
-        date = tree.find(
-            ".//d:Cube[@time]", ns
-        ).attrib["time"]
-        gbp = float(
-            tree.find(
-                ".//d:Cube[@currency='GBP']", ns
-            ).attrib["rate"]
-        )
+        ns = {"d": "http://www.ecb.int/vocabulary/2002-08-01/eurofxref"}
+        date = tree.find(".//d:Cube[@time]", ns).attrib["time"]
+        gbp = float(tree.find(".//d:Cube[@currency='GBP']", ns).attrib["rate"])
         return round(1 / gbp, 4), date
     except:
         return 1.1534, "fallback"
 
-
 # ---------------------------
 # UI
 # ---------------------------
-st.set_page_config(
-    page_title="Car Import Calculator",
-    layout="centered"
-)
+st.set_page_config(page_title="Car Import Calculator", layout="centered")
 
 st.title("🚗 Car Import Calculator")
 
@@ -105,159 +87,65 @@ rate, rate_date = get_gbp_rate()
 
 tab_calc, tab_admin = st.tabs(["Calculator", "Admin"])
 
-
 # ===========================
 # CALCULATOR
 # ===========================
 with tab_calc:
-    country = st.radio(
-        "Import from:",
-        ["UK", "Japan"],
-        horizontal=True
-    )
+    country = st.radio("Import from:", ["UK", "Japan"], horizontal=True)
 
-    st.info(
-        f"GBP → EUR Rate: **{rate}** (ECB – {rate_date})"
-    )
+    st.info(f"GBP → EUR Rate: **{rate}** (ECB – {rate_date})")
 
-    weight = st.number_input(
-        "Vehicle weight (kg)",
-        min_value=0
-    )
-
+    weight = st.number_input("Vehicle weight (kg)", min_value=0)
     tom = calculate_tom(weight) if weight else 0
 
     if country == "UK":
-        purchase = st.number_input(
-            "Purchase price (GBP)"
-        )
-        transport = st.number_input(
-            "Transport (GBP)"
-        )
-        insurance = st.number_input(
-            "Insurance (EUR)"
-        )
+        purchase = st.number_input("Purchase price (GBP)")
+        transport = st.number_input("Transport (GBP)")
+        insurance = st.number_input("Insurance (EUR)")
 
-        vat_uk = (
-            purchase * cfg["vat_uk_percent"] / 100
-        )
-
-        purchase_eur = (
-            purchase + vat_uk
-        ) * rate
-
+        vat_uk = purchase * cfg["vat_uk_percent"] / 100
+        purchase_eur = (purchase + vat_uk) * rate
         transport_eur = transport * rate
 
-        cif = (
-            purchase_eur
-            + transport_eur
-            + insurance
-        )
+        cif = purchase_eur + transport_eur + insurance
 
     else:
-        purchase = st.number_input(
-            "Purchase price (EUR)"
-        )
-        shipping = st.number_input(
-            "Shipping (EUR)"
-        )
-
+        purchase = st.number_input("Purchase price (EUR)")
+        shipping = st.number_input("Shipping (EUR)")
         cif = purchase + shipping
 
-    # ---------------------------
-    # DUTY RATE SELECTION
-    # ---------------------------
-    duty_choice = st.radio(
-        "Duty rate",
-        ["10%", "5%", "0%"],
-        horizontal=True
-    )
-
-    if duty_choice == "0%":
-        duty_rate = 0.0
-    elif duty_choice == "5%":
-        duty_rate = cfg["duty_percent"] / 2
-    else:
-        duty_rate = cfg["duty_percent"]
-
-    # ---------------------------
-    # IMPORT CALCULATIONS
-    # ---------------------------
-    duty = cif * duty_rate / 100
-
-    vat = (
-        cif + duty
-    ) * cfg["vat_cy_percent"] / 100
+    duty = cif * cfg["duty_percent"] / 100
+    vat = (cif + duty) * cfg["vat_cy_percent"] / 100
 
     total_import = cif + duty + vat
-
-    total_cy = (
-        cfg["mot"]
-        + cfg["plates"]
-        + tom
-    )
-
+    total_cy = cfg["mot"] + cfg["plates"] + tom
     final_total = total_import + total_cy
 
-    # ---------------------------
-    # RESULTS
-    # ---------------------------
     st.divider()
     st.subheader("Results")
 
     st.write(f"**CIF:** €{cif:,.2f}")
-    st.write(
-        f"**Duty ({duty_rate:g}%):** €{duty:,.2f}"
-    )
+    st.write(f"**Duty:** €{duty:,.2f}")
     st.write(f"**VAT:** €{vat:,.2f}")
-    st.write(
-        f"**TOM Registration:** €{tom:,.2f}"
-    )
-    st.write(
-        f"**Cyprus Fees:** €{total_cy:,.2f}"
-    )
+    st.write(f"**TOM Registration:** €{tom:,.2f}")
+    st.write(f"**Cyprus Fees:** €{total_cy:,.2f}")
 
-    st.success(
-        f"💰 FINAL TOTAL: €{final_total:,.2f}"
-    )
-
+    st.success(f"💰 FINAL TOTAL: €{final_total:,.2f}")
 
 # ===========================
 # ADMIN
 # ===========================
 with tab_admin:
-    pwd = st.text_input(
-        "Admin password",
-        type="password"
-    )
+    pwd = st.text_input("Admin password", type="password")
 
     if pwd == ADMIN_PASSWORD:
         st.success("Admin access granted")
 
-        cfg["vat_uk_percent"] = st.number_input(
-            "UK VAT %",
-            value=cfg["vat_uk_percent"]
-        )
-
-        cfg["duty_percent"] = st.number_input(
-            "Duty %",
-            value=cfg["duty_percent"]
-        )
-
-        cfg["vat_cy_percent"] = st.number_input(
-            "Cyprus VAT %",
-            value=cfg["vat_cy_percent"]
-        )
-
-        cfg["mot"] = st.number_input(
-            "MOT fee (€)",
-            value=cfg["mot"]
-        )
-
-        cfg["plates"] = st.number_input(
-            "Plates (€)",
-            value=cfg["plates"]
-        )
+        cfg["vat_uk_percent"] = st.number_input("UK VAT %", value=cfg["vat_uk_percent"])
+        cfg["duty_percent"] = st.number_input("Duty %", value=cfg["duty_percent"])
+        cfg["vat_cy_percent"] = st.number_input("Cyprus VAT %", value=cfg["vat_cy_percent"])
+        cfg["mot"] = st.number_input("MOT fee (€)", value=cfg["mot"])
+        cfg["plates"] = st.number_input("Plates (€)", value=cfg["plates"])
 
         if st.button("Save settings"):
             save_config(cfg)
