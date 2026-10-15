@@ -1,125 +1,96 @@
-st.write(f"Duty ({duty_rate}%): €{duty:,.2f}")
-        st.write(f"Cyprus VAT: €{vat:,.2f}")
-
-        st.markdown("### 🇨🇾 Cyprus fees")
-        st.write(f"MOT: €{cfg['mot']:,.2f}")
-        st.write(f"Plates: €{cfg['plates']:,.2f}")
-        st.write(f"Road Tax: €{cfg['road_tax']:,.2f}")
-        st.write(f"Registration: €{cfg['registration']:,.2f}")
-        st.write(f"Certifying Officer: €{cfg['certifying_officer']:,.2f}")
-        st.write(f"Service: €{cfg['service']:,.2f}")
-        st.write(f"Customs agent: €{cfg['customs_agent']:,.2f}")
-        st.write(f"Port charges: €{cfg['port_charges']:,.2f}")
-        st.write(f"SVA (Japan): €{cfg['sva_japan']:,.2f}")
+import streamlit as st
+import requests
+import xml.etree.ElementTree as ET
+import gspread
+from google.oauth2.service_account import Credentials
+import bcrypt
 
 # ============================================================
-# 💰 PROFIT TOOL
+# Google Sheets setup
 # ============================================================
-if is_admin:
-    with tabs[2]:
-        st.subheader("💰 Profit Calculator (Admin only)")
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-        if "last_final_total" not in st.session_state:
-            st.info("Run a UK or Japan calculation first.")
-        else:
-            final_total = st.session_state.last_final_total
-            cy_vat = st.session_state.last_cy_vat
-
-            cost_net = final_total - cy_vat
-
-            cyprus_fees = (
-                cfg["mot"] + cfg["plates"] + cfg["road_tax"]
-                + cfg["registration"] + cfg["certifying_officer"]
-                + cfg["service"] + cfg["customs_agent"]
-                + cfg["port_charges"]
-            )
-
-            if st.session_state.get("last_origin") == "JP":
-                cyprus_fees += cfg["sva_japan"]
-
-            cost_net += cyprus_fees
-
-            st.write(f"**Car cost (net of CY VAT): €{cost_net:,.2f}**")
-
-            st.divider()
-
-            target_profit = st.number_input(
-                "Target profit (€)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 3000",
-                key="target_profit",
-            )
-
-            if target_profit:
-                selling_price = (cost_net + target_profit) * 1.19
-                vat_on_sale = selling_price * 19 / 119
-                st.success(
-                    f"Sell price (VAT incl): €{selling_price:,.2f}\n\n"
-                    f"VAT on sale: €{vat_on_sale:,.2f}"
-                )
-
-            st.divider()
-
-            manual_sell = st.number_input(
-                "Manual selling price (VAT incl €)",
-                value=None,
-                step=500.0,
-                placeholder="e.g. 15000",
-                key="manual_sell",
-            )
-
-            if manual_sell:
-                vat_on_sale = manual_sell * 19 / 119
-                net_sale = manual_sell - vat_on_sale
-                profit = net_sale - cost_net
-                st.info(f"Profit: €{profit:,.2f}")
-
-            st.divider()
-
-            if st.button("🔄 Reset Profit Tool", use_container_width=True):
-                for k in (
-                    "last_final_total",
-                    "last_cy_vat",
-                    "last_origin",
-                    "target_profit",
-                    "manual_sell",
-                ):
-                    st.session_state.pop(k, None)
-                st.rerun()
-
-# ============================================================
-# ⚙️ ADMIN
-# ============================================================
-if is_admin:
-    with tabs[3]:
-        cfg_edit = dict(cfg)
-        for k in cfg_edit:
-            cfg_edit[k] = st.number_input(
-                k.replace("_", " ").title(),
-                value=float(cfg_edit[k]),
-            )
-
-        if st.button("Save settings", use_container_width=True):
-            save_cfg(cfg_edit)
-            st.cache_data.clear()
-            st.success("Saved permanently")
-            st.rerun()
-
-# ============================================================
-# 🚪 LOGOUT
-# ============================================================
-if is_admin:
-    with tabs[4]:
-        st.warning("You are about to log out.")
-        if st.button("Confirm Logout", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
-
-# ============================================================
-# Footer
-# ============================================================
-st.markdown(
-    "<hr><center>© 2025 Ioannis Papaiacovou. All rights reserved.</center>",
-    unsafe_allow_html=True
+CREDS = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=SCOPES,
 )
+gc = gspread.authorize(CREDS)
+
+book = gc.open_by_key(st.secrets["SPREADSHEET_ID"])
+cfg_sheet = book.sheet1
+users_sheet = book.worksheet("users")
+
+# ============================================================
+# Helpers
+# ============================================================
+def nz(v):
+    return float(v) if v not in (None, "") else 0.0
+
+def to_bool(v):
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
+
+# ============================================================
+# Config from Google Sheets
+# ============================================================
+def load_cfg():
+    rows = cfg_sheet.get_all_records()
+    cfg = {r["key"]: float(r["value"]) for r in rows}
+    assert "duty_percent_10" in cfg, "Admin error: duty_percent_10 missing"
+    return cfg
+
+def save_cfg(cfg):
+    data = cfg_sheet.get_all_values()
+    headers = [h.lower() for h in data[0]]
+    key_col = headers.index("key")
+    val_col = headers.index("value")
+
+    updates = []
+    for i, row in enumerate(data[1:], start=2):
+        k = row[key_col]
+        if k in cfg:
+            updates.append({
+                "range": gspread.utils.rowcol_to_a1(i, val_col + 1),
+                "values": [[str(cfg[k])]],
+            })
+    if updates:
+        cfg_sheet.batch_update(updates)
+
+# ============================================================
+# Users / Login
+# ============================================================
+@st.cache_data(ttl=60)
+def load_users():
+    rows = users_sheet.get_all_records()
+    users = {}
+    for r in rows:
+        users[r["username"]] = {
+            "hash": r["password_hash"],
+            "role": r.get("role", "user"),
+            "active": to_bool(r.get("active", True)),
+        }
+    return users
+
+def verify_login(u, p):
+    users = load_users()
+    if u not in users or not users[u]["active"]:
+        return False, None
+    if bcrypt.checkpw(p.encode(), users[u]["hash"].encode()):
+        return True, users[u]["role"]
+    return False, None
+
+# ============================================================
+# FX
+# ============================================================
+@st.cache_data(ttl=300)
+def get_gbp_rate():
+    try:
+        r = requests.get(
+            "https://api.exchangerate.host/latest",
+            params={"base": "GBP", "symbols": "EUR"},
+            timeout=8,
+        )
+        data = r.json()
+        return round(data["rates"]["EUR"], 4), data["date"], "Market"
+    except:
+        r = requests.get(
+            "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
